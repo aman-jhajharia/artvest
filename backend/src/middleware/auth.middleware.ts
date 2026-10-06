@@ -76,3 +76,44 @@ export function requireRole(...allowedRoles: UserRole[]) {
     next();
   };
 }
+
+export async function optionalAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    let token = req.cookies?.[config.session.cookieName];
+
+    if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (!token) {
+      return next();
+    }
+
+    try {
+      const decoded = jwt.verify(token, config.jwt.secret) as AuthSessionPayload;
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          avatarUrl: true,
+          role: true,
+          isOnboarded: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      if (user) {
+        req.user = user as SafeUser;
+      }
+    } catch {
+      // Ignored for optional auth
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
