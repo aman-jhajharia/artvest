@@ -9,17 +9,16 @@
 
 ### The Academic Problem
 Existing social media platforms (Instagram, TikTok, YouTube) are designed for algorithmic passive consumption and viral trends, not professional creative discovery. Critical limitations of existing solutions include:
-1. **Lack of Structured Metadata**: A filmmaker cannot search for *"Classical Singer in Jaipur available for indie film collaboration"*; search results on existing platforms are hashtag-reliant and unstructured.
+1. **Lack of Structured Metadata**: A filmmaker cannot search for *"Classical Singer in Mumbai available for indie film collaboration"*; search results on existing platforms are hashtag-reliant and unstructured.
 2. **Homogeneous Profiles**: An actor, a sound engineer, and a choreographer all receive identical generic profile fields (bio + photo grid), ignoring role-specific requirements like vocal ranges, camera gear, acting lineages, or stage repertoires.
 3. **High Gatekeeping**: Early-stage independent creators struggle to assemble multi-disciplinary crews without industry insider networks.
 
 ---
 
-## 2. Authentication Architecture & Security
+## 2. Authentication & Authorization Architecture
 
 ### 2.1 Google OAuth Identity Verification Flow
-
-ArtVest uses a **zero-trust identity** model:
+ArtVest implements a strict zero-trust identity verification flow:
 
 ```mermaid
 sequenceDiagram
@@ -52,92 +51,150 @@ sequenceDiagram
     end
 ```
 
-### 2.2 Session Cookie Configuration
-- **HttpOnly**: Set to `true` to block browser JavaScript (`document.cookie`) from accessing the session token, eliminating XSS token theft vectors.
-- **SameSite**: Set to `Lax` in development and `Strict` in production to prevent Cross-Site Request Forgery (CSRF).
-- **Secure**: Enabled in production environments (`NODE_ENV === 'production'`) requiring HTTPS transport.
-- **Path**: Set to `/` for ubiquitous domain coverage.
-- **Expiration**: 7-day rolling validity.
+### 2.2 Role-Based Access Control (RBAC)
+Server-side middleware strictly enforces permissions on every request:
+- `requireAuth`: Reads and verifies signed JWT from `HttpOnly` cookie or `Authorization: Bearer` header. Populates `req.user`.
+- `requireRole(...roles)`: Blocks users lacking required role with HTTP 403 `FORBIDDEN`.
+- `optionalAuth`: For public routes (e.g. `/api/creators/:creatorId`), populates `req.user` if valid session exists, permitting privacy checks while allowing public read access.
 
 ---
 
-## 3. Onboarding State Machine
-
-The onboarding pipeline transitions users from raw Google identities to categorized ecosystem participants:
+## 3. Creator Profile & Identity Architecture (Phase 2)
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Authenticated: Google Login
-    Authenticated --> OnboardingCheck: GET /api/auth/me
-    
-    OnboardingCheck --> App: isOnboarded == true
-    OnboardingCheck --> Step1_Intent: isOnboarded == false
-    
-    state Step1_Intent {
-        [*] --> SelectRole
-        SelectRole --> UserChosen: "Discover & Support"
-        SelectRole --> CreatorChosen: "Showcase My Craft"
+erDiagram
+    User ||--o| UserProfile : "has standard profile"
+    User ||--o| CreatorProfile : "has creator profile"
+    User ||--o{ Post : "authors"
+    CreatorProfile }|--|| Category : "primary category"
+    CreatorProfile ||--o{ CreatorSkill : "has skills"
+    Skill }|--|| Category : "belongs to"
+    CreatorSkill }|--|| Skill : "references"
+    Post ||--o{ PostMedia : "contains media"
+
+    User {
+        string id PK
+        string email UK
+        string name
+        string googleId UK
+        string avatarUrl
+        enum role "USER | CREATOR | ADMIN"
+        boolean isOnboarded
     }
 
-    UserChosen --> Step2_UserInterests: Role: USER
-    CreatorChosen --> Step2_CreatorSkills: Role: CREATOR
-
-    state Step2_UserInterests {
-        LoadCategoriesFromDB --> SelectMultipleCategories
+    CreatorProfile {
+        string id PK
+        string userId FK, UK
+        string stageName
+        string headline
+        string bio
+        string location
+        string city
+        string country
+        enum experienceLevel
+        int yearsExperience
+        enum availability
+        string coverImageUrl
+        string website
+        json socialLinks
+        json roleAttributes
+        int profileCompletionScore
+        boolean isVerified
+        boolean isPublic
+        int viewCount
     }
 
-    state Step2_CreatorSkills {
-        SelectPrimaryCategory --> LoadSkillsByCategoryId
-        LoadSkillsByCategoryId --> SelectPrimarySkill
-        SelectPrimarySkill --> SelectAdditionalSkills
+    CreatorSkill {
+        string id PK
+        string creatorProfileId FK
+        string skillId FK
+        boolean isPrimary
+        string proficiency "BEGINNER | INTERMEDIATE | ADVANCED | EXPERT"
+        int yearsExperience
     }
-
-    Step2_UserInterests --> Step3_UserProfile: Display Name, Username, Bio
-    Step2_CreatorSkills --> Step3_CreatorCraft: Stage Name, Experience, Headline, Craft Attributes
-
-    Step3_UserProfile --> Step4_UserReview
-    Step3_CreatorCraft --> Step4_CreatorReview: Compute Dynamic Profile Strength %
-
-    Step4_UserReview --> POST_OnboardUser: POST /api/onboarding/user
-    Step4_CreatorReview --> POST_OnboardCreator: POST /api/onboarding/creator
-
-    POST_OnboardUser --> App: isOnboarded = true, role = USER
-    POST_OnboardCreator --> App: isOnboarded = true, role = CREATOR
 ```
 
-### Invariant Rules Enforced by System
-1. **No Client Role Elevation**: A client can never supply `role: "ADMIN"` during onboarding or authentication. The server explicitly enforces either `UserRole.USER` or `UserRole.CREATOR`.
-2. **Idempotent Single-Submission**: Re-attempting onboarding after completion returns HTTP 409 (`ALREADY_ONBOARDED`).
-3. **Primary Skill Integrity**: Primary skills must belong to the chosen primary category.
-4. **Duplicate Skill Prevention**: A creator cannot possess duplicate `CreatorSkill` records.
+### 3.1 Relational Taxonomy & Dynamic Skills
+1. **Taxonomy Separation**: Categories and Skills exist as independent entities in the database (`Category`, `Skill`). No skill names or category strings are hardcoded in the frontend.
+2. **CreatorSkill Relation**: Links creators to skills with relational integrity.
+   - Primary craft is flagged via `isPrimary: true`. When a new primary skill is set, previous primary skills are atomically unset in a transaction.
+   - The primary skill is verified to match the creator's `primaryCategoryId`.
+   - Secondary skills can span cross-disciplinary capabilities (e.g., a Classical Vocalist who is also an Ableton beat producer).
+   - Duplicate relationships are blocked at both application and database level via `@@unique([creatorProfileId, skillId])`.
+
+### 3.2 Role-Specific Metadata (`roleAttributes`)
+Rather than creating separate tables for each profession, ArtVest employs a schema strategy:
+- Core identity attributes (`location`, `experienceLevel`, `availability`, `bio`) are strongly typed database columns.
+- Discipline-specific attributes are stored in a Postgres JSON column (`roleAttributes`) and validated with Zod schemas (`roleAttributes.validator.ts`) matching the creator's craft:
+  - **Singers / Vocalists**: `genres`, `languages`, `vocalType`
+  - **Musicians**: `instruments`, `genres`, `performanceExperience`
+  - **Music Producers**: `genres`, `daws`, `productionSpecialties`
+  - **Photographers**: `photographyTypes`, `equipment`, `editingTools`
+  - **Videographers**: `videoStyles`, `cameraEquipment`, `editingTools`
+  - **Actors**: `languages`, `actingStyles`, `theatreExperience`
+  - **Directors**: `genres`, `projectTypes`, `directingExperience`
+  - **Graphic Designers**: `designSpecialties`, `tools`, `industries`
+  - **Animators / VFX**: `animationTypes`, `software`, `vfxSpecialties`
+- Unstructured or malicious JSON injection is rejected with HTTP 400.
+
+### 3.3 Profile Completion Algorithm
+Profile strength is computed deterministically by the backend on a 100-point scale:
+- **Artistic Alias (`stageName`)**: 10 pts
+- **Headline Tagline**: 5 pts
+- **Creative Bio ($\ge 20$ chars)**: 10 pts
+- **Discipline Category**: 10 pts
+- **Primary Craft Role**: 10 pts
+- **Secondary Skills**: 10 pts
+- **Location**: 10 pts
+- **Experience Seniority**: 10 pts
+- **Collaboration Availability**: 10 pts
+- **Discipline Attributes**: 10 pts
+- **Visual Cover Banner**: 5 pts
+
+`GET /api/creator/profile/completion` returns the calculated score, current rank (`Emerging Talent`, `Active Creative`, `Established Creator`, `Master Portfolio`), and an explainable checklist with targeted recommendations.
 
 ---
 
-## 4. Role-Specific Craft Attributes Validation
+## 4. Portfolio Foundation & Phase 3 Upload Architecture
 
-Rather than creating dozens of relational tables for every creative craft, ArtVest uses **Category-Aware Zod Validated Attributes**:
+### 4.1 Schema Foundation
+The `Post` and `PostMedia` models provide the foundation for creative portfolio showcases:
+- `Post.isFeatured`: Distinguishes portfolio showcase items from regular stream posts.
+- `PostType`: Supports `IMAGE`, `VIDEO`, `AUDIO`, `TEXT`, `SHOWCASE`.
+- `PostMedia.mediaType`: Supports `IMAGE`, `VIDEO`, `AUDIO`, `DOCUMENT`.
+- `PostMedia.meta`: JSON storage for audio waveforms, resolution dimensions, and codecs.
 
-| Craft Discipline | Validated Attributes Schema | Example Fields |
-|---|---|---|
-| **Music / Vocalist** | `SingerMetadataSchema` | `genres: string[]`, `languages: string[]`, `vocalType: string` |
-| **Film & Acting** | `FilmActorMetadataSchema` | `languages: string[]`, `actingStyles: string[]`, `cameraSystems: string[]` |
-| **Photography & Video** | `PhotographerMetadataSchema` | `photographyStyles: string[]`, `equipment: string[]`, `specializations: string[]` |
-| **Dance & Motion** | `DancerMetadataSchema` | `danceForms: string[]`, `performanceType: string` |
-| **Design & 3D Arts** | `DigitalArtistMetadataSchema` | `tools: string[]`, `engines: string[]`, `focus: string` |
-| **Production Crew** | `ProductionCrewMetadataSchema` | `gear: string[]`, `fieldExperience: string` |
+### 4.2 Phase 3 Media Upload Architecture
+```
+Client Browser (File Input)
+       │
+       │  Multipart upload with HttpOnly session cookie
+       ▼
+ArtVest API (/api/media/upload)
+       │
+       │  Signed upload stream with secret provider credentials
+       ▼
+Media Storage Provider (Cloudinary / AWS S3)
+       │
+       │  Returns secure CDN URL, format metadata, waveform
+       ▼
+ArtVest PostgreSQL DB (Stored in Post / PostMedia)
+```
+Provider API secrets remain quarantined on the backend and are never sent to the browser.
 
 ---
 
-## 5. System Architecture Diagram
+## 5. System Tier Architecture
 
 ```
 +-----------------------------------------------------------------------------------+
 |                                 CLIENT TIER                                       |
 |                                                                                   |
-|  Next.js 16 App Router  |  React 19  |  Tailwind CSS  |  Framer Motion           |
+|  Next.js 16 App Router  |  React 19  |  Tailwind CSS v4  |  Framer Motion         |
 |                                                                                   |
-|  [ Landing Page ]    [ Login / GIS ]   [ Onboarding (5-Step) ]  [ Auth Guard ]    |
-|  [ Explore Shell ]   [ Creator Studio ][ Feed Shell ]           [ App Shell ]     |
+|  [ Landing Page ]      [ Login / GIS ]         [ Onboarding (5-Step) ]             |
+|  [ Creator Profile ]   [ Public /creator/:id ] [ Skills Manager Modal ]            |
+|  [ Edit Profile Modal ][ Profile Strength Card][ Portfolio Foundation ]            |
 +------------------------------------------+----------------------------------------+
                                            |
                                   HTTPS / REST JSON
@@ -151,13 +208,14 @@ Rather than creating dozens of relational tables for every creative craft, ArtVe
 |  +-----------------------------------------------------------------------------+  |
 |  | Middleware: Cookie-Parser, Helmet, CORS, Morgan, requireAuth, requireRole   |  |
 |  +-----------------------------------------------------------------------------+  |
-|  | Controllers: AuthController, OnboardingController, TaxonomyController        |  |
+|  | Controllers: AuthController, OnboardingController, CreatorController,       |  |
+|  |              UserController, TaxonomyController                             |  |
 |  +-----------------------------------------------------------------------------+  |
-|  | Services: AuthService (Google Verification), OnboardingService, Taxonomy   |  |
+|  | Services: AuthService, OnboardingService, CreatorService, UserService      |  |
 |  +-----------------------------------------------------------------------------+  |
-|  | Validators: Zod UserOnboardingSchema, CreatorOnboardingSchema, Metadata     |  |
+|  | Validators: roleAttributes.validator, creator.validator, user.validator     |  |
 |  +-----------------------------------------------------------------------------+  |
-|  | Scoring: calculateCreatorProfileCompletion (Deterministic 100-pt algorithm) |  |
+|  | Algorithm: profileCompletion.ts (Deterministic 100-pt explainable scoring)  |  |
 |  +-----------------------------------------------------------------------------+  |
 |  | Prisma ORM (v6): Type-safe schema client, connection pool, migrations       |  |
 |  +-----------------------------------------------------------------------------+  |
@@ -171,23 +229,24 @@ Rather than creating dozens of relational tables for every creative craft, ArtVe
 |  PostgreSQL Relational Database                                                   |
 |  - Users & Profiles: User, UserProfile, CreatorProfile                            |
 |  - Taxonomy: Category, Skill, CreatorSkill                                        |
-|  - Composite Unique Constraints (Prevention of duplicate accounts & skills)       |
-|  - Indexing: B-Tree on emails, googleId, roles, locations, categories             |
+|  - Portfolio Foundation: Post, PostMedia                                          |
+|  - Composite Unique Constraints: @@unique([creatorProfileId, skillId])          |
+|  - Indexing: B-Tree on emails, googleId, roles, locations, categories, isPublic   |
 +-----------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 6. Two-Phase Development Roadmap
+## 6. Milestone Progress & Roadmap
 
 | Phase | Milestone | Scope / Deliverables | Status |
 |---|---|---|---|
-| **Phase 0** | Architecture Foundation | Project structure, TypeScript, Prisma Schema, Health API, Landing shell | Completed |
-| **Phase 1** | Auth & Onboarding | Google OAuth verification, HttpOnly sessions, RBAC, Onboarding UI, Taxonomy API, Tests | **COMPLETED** |
-| **Phase 2** | Creator Profiles & Skills | Profile editor, role-specific metadata forms, portfolio storage | Next Phase |
-| **Phase 3** | Posts & Multimedia | Upload service (Cloudinary), Audio/Video/Image showcase posts | Midterm Target |
-| **Phase 4** | Feed & Social Graph | Chronological feed, Like, Comment, Save, Follow | Midterm Target |
-| **Phase 5** | Explore & Discovery | Multi-criteria search (Category, Role, City, Availability) | Midterm Target |
-| **Phase 6** | Studio & Notifications | Creator studio metrics, notification alerts | Midterm Target |
-| **Phase 7** | Midterm Stabilization | Testing, academic viva prep, demo data seeding | **MIDTERM VIVA** |
-| **Phase 8-13**| Community Projects | Project teams, virtual credit wallet, community backing | **END-TERM VIVA**|
+| **Phase 0** | Architecture Foundation | Monorepo structure, TypeScript, Prisma Schema, Health API, Landing shell | **COMPLETED** |
+| **Phase 1** | Auth & Onboarding | Google OAuth verification, HttpOnly sessions, RBAC, Onboarding UI, Taxonomy API, Tests (13/13) | **COMPLETED** |
+| **Phase 2** | Creator Identity & Skills | Profile editor, dynamic skills management, proficiencies, role metadata validation, completion scoring, public creator discovery, portfolio foundation, Tests (27/27) | **COMPLETED** |
+| **Phase 3** | Posts & Multimedia | Upload service (Cloudinary), Audio/Video/Image showcase posts | Upcoming |
+| **Phase 4** | Feed & Social Graph | Chronological feed, Like, Comment, Save, Follow | Upcoming |
+| **Phase 5** | Explore & Discovery | Multi-criteria search (Category, Role, City, Availability) | Upcoming |
+| **Phase 6** | Studio & Notifications | Creator studio metrics, notification alerts | Upcoming |
+| **Phase 7** | Midterm Stabilization | End-to-end integration, academic viva prep, demo data seeding | **MIDTERM VIVA** |
+| **Phase 8-13**| Community Projects | Multidisciplinary teams, simulated virtual credit wallet, community backing | **END-TERM VIVA**|
