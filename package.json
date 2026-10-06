@@ -11,7 +11,9 @@
     "prisma:generate": "npm --prefix backend run prisma:generate",
     "prisma:migrate": "npm --prefix backend run prisma:migrate",
     "prisma:studio": "npm --prefix backend run prisma:studio",
-    "prisma:seed": "npm --prefix backend run prisma:seed"
+    "prisma:seed": "npm --prefix backend run prisma:seed",
+    "db:local": "npm --prefix backend run db:local",
+    "test": "npm --prefix backend run test"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

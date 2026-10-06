@@ -31,177 +31,150 @@ Traditional platforms treat every creator identically with a generic bio and pho
 |---|---|
 | **Frontend** | [Next.js 16](https://nextjs.org/) (App Router), [React 19](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS v4](https://tailwindcss.com/), [Framer Motion](https://www.framer.com/motion/) |
 | **Backend** | [Node.js](https://nodejs.org/) (v20+), [Express.js 4.21](https://expressjs.com/), [TypeScript](https://www.typescriptlang.org/) |
-| **Database & ORM** | [PostgreSQL](https://www.postgresql.org/), [Prisma ORM 6.19](https://www.prisma.io/) |
-| **Security & Middleware**| Helmet, CORS, Morgan, Zod |
-| **Media Storage** | Cloudinary / Object Storage (Phase 3) |
-| **Architecture** | Layered REST API Architecture (Routes $\rightarrow$ Controllers $\rightarrow$ Services $\rightarrow$ Repositories $\rightarrow$ Prisma) |
+| **Authentication & Sessions**| Google OAuth / Google Identity Services, Cryptographic ID Token Verification (`google-auth-library`), Signed JWT in `HttpOnly` Cookies, Cookie-Parser |
+| **Database & ORM** | [PostgreSQL](https://www.postgresql.org/), [Prisma ORM 6.19](https://www.prisma.io/), Docker Compose & Local Embedded Postgres Runner |
+| **Security & Middleware**| Helmet, CORS with credentialed origins, Morgan, Zod |
+| **Testing** | Node.js Test Runner (`node:test`, `node:assert`), Supertest |
+| **Architecture** | Layered REST API Architecture (Routes $\rightarrow$ Controllers $\rightarrow$ Services $\rightarrow$ Prisma) |
 
 ---
 
-## 3. Repository Structure
+## 3. Authentication & Session Architecture
+
+ArtVest implements a strict **zero-trust client identity** model. Identity is never accepted from arbitrary client payloads; it is verified cryptographically via Google OAuth:
 
 ```
-artvest/
-├── ARCHITECTURE.md              # In-depth architectural specification & viva guide
-├── README.md                    # Project documentation & setup instructions
-├── package.json                 # Monorepo orchestration scripts
-├── .gitignore                   # Multi-package ignore rules
-│
-├── backend/                     # Express.js REST API Service
-│   ├── .env.example             # Backend environment variable template
-│   ├── package.json             # Backend dependencies & scripts
-│   ├── tsconfig.json            # NodeNext TypeScript configuration
-│   ├── prisma/
-│   │   ├── schema.prisma        # Phase 1 Prisma PostgreSQL schema
-│   │   └── seed.ts              # Seeding script for categories & skills
-│   └── src/
-│       ├── config/              # Central configuration & Prisma client singleton
-│       ├── controllers/         # HTTP request controllers (HealthController)
-│       ├── middleware/          # Global error handling, 404, security
-│       ├── routes/              # Express API routers (HealthRoutes, ApiRoutes)
-│       ├── services/            # Business logic (HealthService)
-│       ├── repositories/        # Data access abstraction
-│       ├── validators/          # Input validation schemas (Zod)
-│       ├── utils/               # Standard ApiResponse formatter, logger
-│       ├── types/               # Backend domain types
-│       ├── app.ts               # Express application factory
-│       └── server.ts            # Server entry point & graceful shutdown
-│
-└── frontend/                    # Next.js App Router Web Application
-    ├── .env.example             # Frontend environment variable template
-    ├── package.json             # Frontend dependencies & scripts
-    ├── tsconfig.json            # TypeScript configuration
-    ├── next.config.ts           # Next.js & Turbopack configuration
-    └── src/
-        ├── app/
-        │   ├── globals.css      # Dark obsidian design system tokens
-        │   ├── layout.tsx       # Root layout with SEO metadata
-        │   ├── page.tsx         # Cinematic landing page
-        │   ├── login/           # Authentication shell & role selection preview
-        │   └── app/             # Application platform shell
-        │       ├── layout.tsx   # App sidebar & navigation wrapper
-        │       ├── page.tsx     # Creative showcase feed shell
-        │       ├── explore/     # Structured multi-attribute talent discovery
-        │       ├── studio/      # Creator Studio & analytics dashboard
-        │       ├── profile/     # Role-specific creator profile shell
-        │       ├── notifications/ # Notifications shell
-        │       └── saved/       # Bookmarked showcases shell
-        ├── components/
-        │   ├── layout/          # Navbar, AppSidebar, Footer
-        │   └── ui/              # PhaseBanner, Badge primitives
-        ├── features/            # Feature-sliced modules
-        ├── services/            # API client connecting to backend
-        └── types/               # Frontend domain TypeScript definitions
+               ┌──────────────┐
+               │    Google    │
+               │ (OAuth / GIS)│
+               └──────┬───────┘
+                      │  Google ID Token
+                      ▼
+              ┌───────────────┐
+              │ ArtVest API   │
+              │ Authentication│
+              └───────┬───────┘
+                      │  Verify with google-auth-library
+                      ▼
+               ┌─────────────┐
+               │    User     │
+               │ PostgreSQL  │
+               └──────┬──────┘
+                      │  Issue Session JWT
+                      ▼
+             HttpOnly Cookie (artvest_session)
+                      │  Secure, SameSite=Lax, Path=/
+                      ▼
+              ┌───────────────┐
+              │   Next.js     │
+              │   Frontend    │
+              └───────────────┘
 ```
 
----
-
-## 4. Phase 1 Database Scope (Prisma Entities)
-
-The current Prisma schema (`backend/prisma/schema.prisma`) implements all Phase 1 domain entities:
-
-1. **`User`**: Authentication credentials, Google ID, RBAC roles (`USER`, `CREATOR`, `ADMIN`), onboarding status.
-2. **`UserProfile`**: General community member attributes (username, bio, interests).
-3. **`CreatorProfile`**: Professional attributes (stage name, headline, location, city, experience level, availability, profile completion score, verified status, and scalable `roleAttributes` JSON).
-4. **`Category`**: 6 Creative Disciplines:
-   - Music
-   - Film & Acting
-   - Dance
-   - Photography & Video
-   - Design & Digital Arts
-   - Production & Support
-5. **`Skill`**: 30+ granular craft roles linked to categories (Singer, Cinematographer, Actor, 3D Artist, etc.).
-6. **`CreatorSkill`**: Relational pivot connecting creators to specific skills with years of experience.
-7. **`Post`**: Multimedia showcase posts (`IMAGE`, `VIDEO`, `AUDIO`, `TEXT`, `SHOWCASE`) with category association and tags.
-8. **`PostMedia`**: Media assets with durations, aspect ratios, thumbnails, and waveform metadata.
-9. **`Comment`**: Hierarchical post comments with nested reply capability.
-10. **`Like`**: Unique user appreciations with composite constraints `[postId, userId]`.
-11. **`Save`**: User bookmarks with composite constraints `[postId, userId]`.
-12. **`Follow`**: Asymmetric social graph connections with composite constraints `[followerId, followingId]`.
-13. **`Notification`**: Activity alerts for follows, likes, comments, and collaboration inquiries.
-14. **`Report`**: Moderation audit trails for safety.
-
-*Phase 2 entities (`Project`, `VirtualWallet`, `CreditTransaction`, `ProjectBacking`) are intentionally deferred.*
+### Security Properties
+1. **HttpOnly Cookies**: Session tokens cannot be accessed or stolen via client-side JavaScript (`document.cookie` / XSS).
+2. **CORS with Credentials**: Configured exclusively for the trusted frontend origin (`http://localhost:3000`), rejecting wildcard `*` with credentials.
+3. **Server-Enforced RBAC**: Roles (`USER`, `CREATOR`, `ADMIN`) are strictly determined by the server. Users cannot elevate their own role to `ADMIN` during onboarding or through client-sent payloads.
+4. **Deterministic Profile Completion**: Creator profile scores are computed dynamically based on completed fields rather than hardcoded metrics.
 
 ---
 
-## 5. Getting Started & Local Execution
+## 4. API Endpoints (Phase 1)
+
+| Method | Endpoint | Protection | Description |
+|---|---|---|---|
+| `POST` | `/api/auth/google` | Public | Verifies Google ID token, registers/finds user, sets session cookie |
+| `POST` | `/api/auth/logout` | Public | Clears `artvest_session` cookie |
+| `GET` | `/api/auth/me` | `requireAuth` | Returns authenticated user details and active profile |
+| `GET` | `/api/categories` | Public | Fetches all creative categories from database |
+| `GET` | `/api/skills` | Public | Fetches craft skills (filterable via `?categoryId=`) |
+| `POST` | `/api/onboarding/user` | `requireAuth` | Completes onboarding for community member (`USER`) |
+| `POST` | `/api/onboarding/creator`| `requireAuth` | Completes onboarding for creative professional (`CREATOR`) |
+| `GET` | `/api/onboarding/status` | `requireAuth` | Checks current onboarding and profile completion status |
+| `GET` | `/api/health` | Public | System uptime, version, and database connectivity status |
+
+---
+
+## 5. Local Setup & Execution
 
 ### Prerequisites
 - **Node.js**: v20+
 - **npm**: v10+
-- **PostgreSQL**: Local or hosted instance (e.g. Supabase / Neon / Local Docker)
+- **Docker** (Optional, or use the built-in local database runner)
 
 ### Installation
-
-Clone the repository and install dependencies across the monorepo:
 ```bash
 # Clone repository
 git clone <repo-url>
 cd artvest
 
-# Install root dependencies
+# Install dependencies across all packages
 npm install
+npm --prefix backend install
+npm --prefix frontend install
+```
 
-# Install backend dependencies
-cd backend && npm install && cd ..
+### Database Setup Options
 
-# Install frontend dependencies
-cd frontend && npm install && cd ..
+#### Option A: Docker Compose
+```bash
+docker compose up -d
+```
+
+#### Option B: Embedded Local PostgreSQL Runner (No Docker required)
+```bash
+npm run db:local
 ```
 
 ### Environment Configuration
+1. Backend configuration:
+   ```bash
+   cp backend/.env.example backend/.env
+   ```
+   Verify `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/artvest?schema=public`.
 
-1. Set up backend environment:
-```bash
-cp backend/.env.example backend/.env
-```
-Configure `DATABASE_URL` with your PostgreSQL connection string in `backend/.env`.
+2. Frontend configuration:
+   ```bash
+   cp frontend/.env.example frontend/.env.local
+   ```
 
-2. Set up frontend environment:
+### Run Migrations & Database Seeding
 ```bash
-cp frontend/.env.example frontend/.env.local
+# Apply Prisma migrations
+npm run prisma:migrate
+
+# Seed categories and skills (Idempotent upsert)
+npm run prisma:seed
 ```
 
 ### Running the Application
-
-You can start both frontend and backend concurrently from the root directory:
 ```bash
+# Run both Backend and Frontend concurrently:
 npm run dev
+
+# Or run separately:
+npm run dev:backend   # Express API on http://localhost:5000
+npm run dev:frontend  # Next.js App on http://localhost:3000
 ```
 
-Or run them individually in separate terminal sessions:
+### Running Automated Test Suite
 ```bash
-# Terminal 1: Backend API (runs on http://localhost:5000)
-npm run dev:backend
-
-# Terminal 2: Frontend Web App (runs on http://localhost:3000)
-npm run dev:frontend
+npm test
 ```
-
-### Verifying System Status
-
-- **Backend Health Check**: [http://localhost:5000/api/health](http://localhost:5000/api/health)
-- **Frontend Web Application**: [http://localhost:3000](http://localhost:3000)
-- **Talent Discovery**: [http://localhost:3000/app/explore](http://localhost:3000/app/explore)
-- **Creator Studio**: [http://localhost:3000/app/studio](http://localhost:3000/app/studio)
-- **Creator Profile**: [http://localhost:3000/app/profile](http://localhost:3000/app/profile)
+The test suite validates:
+- Unauthenticated requests rejected with 401
+- Session cookie verification
+- Google token authentication flow
+- Duplicate Google accounts prevented
+- Duplicate creator skills prevented
+- Re-onboarding prevented with 409
+- Role hijacking prevention (ADMIN cannot be selected)
+- Category and skill database indexing
 
 ---
 
 ## 6. Academic Viva Defense Highlights
 
-- **Why Not Use a Single Profile Model?**: General social networks collapse all users into a generic bio. In ArtVest, a vocalist has structured genres, vocal range, and languages, while a cinematographer has camera packages and color workflows. By storing standard fields relationally and craft-specific metadata in indexed JSON attributes, we achieve infinite extensibility without 30 redundant tables.
-- **Why Separate Express Backend from Next.js?**: Ensures clear multi-tier architectural separation for academic defense (Presentation Tier $\rightarrow$ Application Tier $\rightarrow$ Persistence Tier) rather than tight coupling in Next.js Server Actions.
-- **Why Disallow Dislikes?**: ArtVest is built for constructive creative discovery and portfolio evaluation, avoiding negative downvoting loops that harm emerging artists.
-
----
-
-## 7. Git Commit Convention
-
-All contributions follow Conventional Commits:
-- `feat(scope)`: New feature addition
-- `fix(scope)`: Bug fixes
-- `refactor(scope)`: Code refactoring without behavioral change
-- `docs(scope)`: Documentation updates
-- `chore(scope)`: Tooling, dependency, or configuration changes
+- **Why HttpOnly Cookies Instead of LocalStorage?**: LocalStorage is vulnerable to Cross-Site Scripting (XSS) attacks. By setting an `HttpOnly`, `SameSite=Lax` cookie, session tokens are isolated from browser scripts and handled transparently by the network stack.
+- **Why Separate User and Creator Onboarding?**: Creators require structured multi-attribute indexing (skills, experience, vocal ranges, camera gear) to allow precise collaborator discovery, whereas community members only need interest categories.
+- **Why Hybrid JSON for Role Attributes?**: Using a strictly normalized table for every possible profession (30+ roles) leads to massive schema migration overhead. By combining normalized core entities with category-aware Zod-validated JSON attributes, ArtVest achieves infinite extensibility without schema bloat.
