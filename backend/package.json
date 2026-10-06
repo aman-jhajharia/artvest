@@ -12,7 +12,9 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "tsx prisma/seed.ts",
     "db:local": "tsx scripts/start-local-db.ts",
-    "test": "tsx --test tests/auth-onboarding.test.ts"
+    "test": "tsx --test tests/auth-onboarding.test.ts tests/creator-profile.test.ts",
+    "test:auth": "tsx --test tests/auth-onboarding.test.ts",
+    "test:creator": "tsx --test tests/creator-profile.test.ts"
   },
   "keywords": [
     "artvest",
