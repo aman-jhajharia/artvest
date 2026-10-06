@@ -17,8 +17,8 @@ frontend/out/
 # Backend Build
 backend/dist/
 
-# Prisma
-backend/prisma/migrations/
+# Embedded Postgres Local Data
+.embedded-postgres/
 *.db
 *.sqlite
 
