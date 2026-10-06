@@ -2,22 +2,31 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 import {
   Home,
   Compass,
   FolderGit2,
   Bookmark,
   Bell,
-  User,
+  User as UserIcon,
   LayoutDashboard,
   PlusCircle,
   Sparkles,
   Lock,
+  LogOut,
 } from 'lucide-react';
 
 export const AppSidebar: React.FC = () => {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
+  };
 
   const navItems = [
     { label: 'Feed', href: '/app', icon: Home },
@@ -25,7 +34,7 @@ export const AppSidebar: React.FC = () => {
     { label: 'Creator Studio', href: '/app/studio', icon: LayoutDashboard },
     { label: 'Saved Work', href: '/app/saved', icon: Bookmark },
     { label: 'Notifications', href: '/app/notifications', icon: Bell },
-    { label: 'Profile', href: '/app/profile', icon: User },
+    { label: 'Profile', href: '/app/profile', icon: UserIcon },
   ];
 
   return (
@@ -101,20 +110,42 @@ export const AppSidebar: React.FC = () => {
         </div>
       </div>
 
-      {/* User Session Footer Preview */}
-      <div className="pt-4 border-t border-white/10">
+      {/* User Session Footer & Logout */}
+      <div className="pt-4 border-t border-white/10 space-y-2">
         <Link
           href="/app/profile"
           className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors"
         >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-400 to-pink-500 flex items-center justify-center text-black font-bold text-xs">
-            AV
-          </div>
-          <div className="flex flex-col overflow-hidden">
-            <span className="text-xs font-semibold text-white truncate">Jaipur Creative</span>
-            <span className="text-[10px] text-amber-400 truncate">Creator • Vocalist</span>
+          {user?.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.avatarUrl}
+              alt={user.name}
+              className="w-8 h-8 rounded-full border border-white/10 object-cover"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-400 to-pink-500 flex items-center justify-center text-black font-bold text-xs">
+              {user?.name ? user.name.slice(0, 2).toUpperCase() : 'AV'}
+            </div>
+          )}
+          <div className="flex flex-col overflow-hidden flex-1">
+            <span className="text-xs font-semibold text-white truncate">
+              {user?.name || 'ArtVest User'}
+            </span>
+            <span className="text-[10px] text-amber-400 truncate">
+              {user?.role || 'USER'} • {user?.isOnboarded ? 'Active' : 'Pending'}
+            </span>
           </div>
         </Link>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span>Sign Out</span>
+        </button>
       </div>
     </aside>
   );

@@ -1,11 +1,55 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 import { AppSidebar } from '@/components/layout/AppSidebar';
+import { Sparkles } from 'lucide-react';
 
 export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { user, isLoading, isAuthenticated, isOnboarded } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading) {
+      if (!isAuthenticated) {
+        router.replace('/login');
+      } else if (!isOnboarded) {
+        router.replace('/onboarding');
+      }
+    }
+  }, [isLoading, isAuthenticated, isOnboarded, router]);
+
+  // Loading state with cinematic skeleton
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#090A10] flex flex-col items-center justify-center p-4">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-amber-500/20 animate-pulse mb-4">
+          <Sparkles className="w-6 h-6 text-black" />
+        </div>
+        <p className="text-xs font-mono text-gray-400">Verifying ArtVest session...</p>
+      </div>
+    );
+  }
+
+  // If unauthenticated or not onboarded, hold UI while redirect triggers
+  if (!isAuthenticated || !isOnboarded) {
+    return (
+      <div className="min-h-screen bg-[#090A10] flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-400 flex items-center justify-center mx-auto mb-3 animate-spin">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <p className="text-xs text-gray-400">Redirecting to {isAuthenticated ? 'onboarding' : 'login'}...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#090A10] text-gray-100 flex">
       {/* Fixed Sidebar for desktop */}
