@@ -2,6 +2,7 @@ import express, { Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 import { config } from './config/index.js';
 import { apiRoutes } from './routes/index.js';
 import { notFoundMiddleware } from './middleware/notFound.middleware.js';
@@ -13,7 +14,10 @@ export function createApp(): Express {
   // Security headers
   app.use(helmet());
 
-  // CORS configuration
+  // Cookie parsing for HttpOnly session cookies
+  app.use(cookieParser());
+
+  // CORS configuration with credentials support
   app.use(
     cors({
       origin: [config.frontendUrl, 'http://localhost:3000', 'http://127.0.0.1:3000'],
