@@ -1,0 +1,370 @@
+// Prisma Schema for ArtVest - Phase 1 Scope
+// PR1107 Major Project: B.Tech Computer Science Engineering
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum UserRole {
+  USER
+  CREATOR
+  ADMIN
+}
+
+enum ExperienceLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  PROFESSIONAL
+  VETERAN
+}
+
+enum AvailabilityStatus {
+  AVAILABLE_FOR_COLLAB
+  OPEN_TO_WORK
+  FREELANCE
+  COMMISSION
+  NOT_AVAILABLE
+}
+
+enum PostType {
+  IMAGE
+  VIDEO
+  AUDIO
+  TEXT
+  SHOWCASE
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+}
+
+enum NotificationType {
+  LIKE
+  COMMENT
+  FOLLOW
+  SYSTEM
+  COLLAB_INTEREST
+}
+
+enum ReportTargetType {
+  POST
+  USER
+  COMMENT
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+  ACTION_TAKEN
+}
+
+// ==========================================
+// USER & PROFILES
+// ==========================================
+
+model User {
+  id                    String            @id @default(cuid())
+  email                 String            @unique
+  name                  String
+  googleId              String?           @unique
+  avatarUrl             String?
+  role                  UserRole          @default(USER)
+  isOnboarded           Boolean           @default(false)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  // Profile relations
+  profile               UserProfile?
+  creatorProfile        CreatorProfile?
+
+  // Social relations
+  posts                 Post[]
+  comments              Comment[]
+  likes                 Like[]
+  saves                 Save[]
+  following             Follow[]          @relation("UserFollowing")
+  followers             Follow[]          @relation("UserFollowers")
+
+  // System & Moderation relations
+  notificationsReceived Notification[]    @relation("RecipientNotifications")
+  notificationsTriggered Notification[]   @relation("ActorNotifications")
+  reportsFiled          Report[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model UserProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  username    String   @unique
+  bio         String?
+  location    String?
+  website     String?
+  interests   String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([username])
+}
+
+model CreatorProfile {
+  id                      String             @id @default(cuid())
+  userId                  String             @unique
+  stageName               String?
+  headline                String?
+  bio                     String?
+  location                String
+  city                    String?
+  country                 String             @default("India")
+  experienceLevel         ExperienceLevel    @default(INTERMEDIATE)
+  yearsExperience         Int?               @default(0)
+  availability            AvailabilityStatus @default(AVAILABLE_FOR_COLLAB)
+  coverImageUrl           String?
+  website                 String?
+  socialLinks             Json?              // { spotify, youtube, instagram, etc. }
+  roleAttributes          Json?              // Structured role-specific metadata (vocalType, languages, equipment, etc.)
+  collaborationPreferences Json?             // { lookingFor: [...] }
+  profileCompletionScore  Int                @default(50)
+  isVerified              Boolean            @default(false)
+  viewCount               Int                @default(0)
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+
+  // Category association
+  primaryCategoryId       String
+  primaryCategory         Category           @relation(fields: [primaryCategoryId], references: [id])
+
+  // Relations
+  user                    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creatorSkills           CreatorSkill[]
+
+  @@index([location])
+  @@index([city])
+  @@index([experienceLevel])
+  @@index([availability])
+  @@index([primaryCategoryId])
+}
+
+// ==========================================
+// CATEGORIES & SKILLS
+// ==========================================
+
+model Category {
+  id              String           @id @default(cuid())
+  name            String           @unique
+  slug            String           @unique
+  description     String?
+  icon            String?
+  themeKey        String?          // e.g. "music", "film", "dance", "photography", "design"
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  skills          Skill[]
+  creatorProfiles CreatorProfile[]
+  posts           Post[]
+
+  @@index([slug])
+}
+
+model Skill {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique
+  categoryId    String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  category      Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  creatorSkills CreatorSkill[]
+
+  @@index([categoryId])
+  @@index([slug])
+}
+
+model CreatorSkill {
+  id               String         @id @default(cuid())
+  creatorProfileId String
+  skillId          String
+  isPrimary        Boolean        @default(false)
+  yearsExperience  Int?
+  createdAt        DateTime       @default(now())
+
+  creatorProfile   CreatorProfile @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  skill            Skill          @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorProfileId, skillId])
+  @@index([creatorProfileId])
+  @@index([skillId])
+}
+
+// ==========================================
+// POSTS & MEDIA
+// ==========================================
+
+model Post {
+  id          String      @id @default(cuid())
+  authorId    String
+  title       String?
+  caption     String
+  postType    PostType    @default(IMAGE)
+  categoryId  String?
+  tags        String[]    @default([])
+  viewCount   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  media       PostMedia[]
+  comments    Comment[]
+  likes       Like[]
+  saves       Save[]
+  reports     Report[]
+
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([postType])
+  @@index([createdAt])
+}
+
+model PostMedia {
+  id           String    @id @default(cuid())
+  postId       String
+  mediaType    MediaType @default(IMAGE)
+  url          String
+  thumbnailUrl String?
+  aspectRatio  String?   // e.g. "16:9", "1:1", "4:5"
+  duration     Float?    // Seconds for audio/video
+  orderIndex   Int       @default(0)
+  meta         Json?     // Waveform, dimensions, size, etc.
+  createdAt    DateTime  @default(now())
+
+  post         Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+// ==========================================
+// SOCIAL INTERACTIONS
+// ==========================================
+
+model Comment {
+  id        String    @id @default(cuid())
+  postId    String
+  authorId  String
+  content   String
+  parentId  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+
+  @@index([postId])
+  @@index([authorId])
+  @@index([parentId])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+}
+
+model Save {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String   // User who followed
+  followingId String   // User being followed
+  createdAt   DateTime @default(now())
+
+  follower    User     @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// ==========================================
+// NOTIFICATIONS & MODERATION
+// ==========================================
+
+model Notification {
+  id           String           @id @default(cuid())
+  recipientId  String
+  actorId      String?
+  type         NotificationType
+  title        String
+  message      String
+  resourceId   String?
+  resourceType String?          // "POST", "USER", etc.
+  isRead       Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+
+  recipient    User             @relation("RecipientNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor        User?            @relation("ActorNotifications", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([recipientId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model Report {
+  id          String           @id @default(cuid())
+  reporterId  String
+  targetType  ReportTargetType
+  targetId    String
+  postId      String?
+  reason      String
+  details     String?
+  status      ReportStatus     @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  reporter    User             @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  post        Post?            @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  @@index([targetType, targetId])
+  @@index([status])
+}
