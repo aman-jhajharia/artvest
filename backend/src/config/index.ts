@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { CookieOptions } from 'express';
 
 dotenv.config();
 
@@ -11,6 +12,10 @@ export const config = {
     secret: process.env.JWT_SECRET || 'artvest-dev-jwt-secret-do-not-use-in-production',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
+  session: {
+    cookieName: 'artvest_session',
+    maxAgeDays: 7,
+  },
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
@@ -22,3 +27,14 @@ export const config = {
     apiSecret: process.env.CLOUDINARY_API_SECRET || '',
   },
 } as const;
+
+export function getSessionCookieOptions(): CookieOptions {
+  const isProduction = config.env === 'production';
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'strict' : 'lax',
+    path: '/',
+    maxAge: config.session.maxAgeDays * 24 * 60 * 60 * 1000,
+  };
+}
