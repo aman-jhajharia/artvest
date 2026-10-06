@@ -131,6 +131,7 @@ export class OnboardingService {
     // Calculate deterministic profile completion score
     const profileScore = calculateCreatorProfileCompletion({
       stageName: input.stageName,
+      headline: input.headline,
       bio: input.bio,
       location: input.location,
       primaryCategoryId: input.primaryCategoryId,
