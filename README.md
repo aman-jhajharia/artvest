@@ -23,10 +23,11 @@ Traditional platforms treat every creator identically with a generic bio and pho
 - **Phase 1**: Authentication & Onboarding (Google OAuth, HttpOnly JWT, RBAC, 5-step onboarding, deterministic score).
 - **Phase 2**: Creator Identity, Profiles & Portfolio Foundation (Live profile viewing & editing, dynamic skill management with proficiencies, discipline-specific role metadata validation, explainable profile strength scoring, public profile discovery `/creator/:creatorId`, privacy controls).
 - **Phase 3**: Multimedia Portfolio & Showcase Posts (Extensible media model: Image, Video, Audio, Text, Showcase; Cloudinary/local media abstraction; 5-step showcase creator flow; Creator Studio `/app/studio` with Drafts, Published, and Featured work; interactive waveform audio player; live chronological showcase feed `/app`; tests 43/43).
-- **Phase 4 (Current Milestone - Completed)**: **Social Graph & Creative Interaction** (Post likes & unlikes with unique constraint, saved bookmarks with paginated `/app/saved`, nested comments & replies with ownership rules, creator follow/unfollow graph, structured collaboration inquiries with PENDING/ACCEPTED/DECLINED/WITHDRAWN lifecycle state machine, Studio inquiries manager, tests 83/83).
-- **Phase 5 (Next Milestone)**: Explore & Discovery (Multi-criteria structured creator and showcase discovery).
-- **Phase 6**: Notifications & Studio Analytics.
-- **Phase 7-13**: Creative Projects, Multidisciplinary Teams & Community Backing.
+- **Phase 4**: Social Graph & Creative Interaction (Post likes & unlikes with unique constraint, saved bookmarks with paginated `/app/saved`, nested comments & replies with ownership rules, creator follow/unfollow graph, structured collaboration inquiries with PENDING/ACCEPTED/DECLINED/WITHDRAWN lifecycle state machine, Studio inquiries manager, tests 83/83).
+- **Phase 5 (Current Milestone - Completed)**: **Explore & Structured Discovery** (Multi-attribute discovery by discipline, skill, location, experience, availability, and proficiency; multi-token keyword matching; transparent deterministic relevance scoring; URL query state synchronization; responsive filter sidebar & drawer; tests 108/108).
+- **Phase 6 (Next Milestone)**: Creator Studio + Notifications (Studio analytics, event-driven notification alerts).
+- **Phase 7**: Midterm Stabilization (End-to-end integration, academic viva prep, demo data seeding).
+- **Phase 8-13**: Creative Projects, Multidisciplinary Teams & Community Backing.
 
 ---
 
@@ -161,11 +162,12 @@ npm run dev:frontend  # Next.js on http://localhost:3000
 ```bash
 npm test
 ```
-The test suite executes 83/83 automated integration tests (100% passing):
+The test suite executes 108/108 automated integration tests (100% passing):
 - **Phase 1 (13 tests)**: Google OAuth verification, session cookie issuance, re-onboarding prevention, RBAC elevation blocking.
 - **Phase 2 (14 tests)**: Creator profile retrieval, partial PATCH updates, validation rejection, 403 enforcement on non-creators, dynamic skill addition, duplicate skill conflict (409), skill deletion, session scoping isolation, roleAttributes discipline validation, deterministic profile completion, dynamic score recalculation, public profile visibility & privacy (`isPublic`), and user/creator separation.
 - **Phase 3 (16 tests)**: Showcase draft creation, studio retrieval, draft modification, cross-creator modification isolation (403), draft deletion, draft-to-published lifecycle transition, incomplete post publishing rejection (400), draft privacy from public feed, published feed appearance, creator portfolio integration, featured ordering priority, standard USER restriction (403), unsupported media format rejection (400), file size limit enforcement (400), mutation ownership enforcement, feed pagination.
 - **Phase 4 (40 tests)**: Like/unlike posts, unique constraints preventing duplicate likes, save/unsave posts, unique constraint on saves, draft post interaction rejection (400), comments and nested replies, self-reply prevention, cross-post parent rejection, owner comment edits and deletions, non-owner comment mutation blocking (403), follow/unfollow creators, self-follow prevention, follower/following lists, structured collaboration inquiry lifecycle (create, list sent/received, sender withdraw, recipient accept/decline, cross-user modification rejection, invalid status transition blocking, draft post reference rejection).
+- **Phase 5 (25 tests)**: Public creator discovery, private creator exclusion (`isPublic: false`), category filtering, skill/role filtering, location/city matching, experience level filtering, availability status filtering, multi-attribute filter composition, empty results behavior, keyword search across fields, multi-token compound search ("Classical Singer in Jaipur"), explainable deterministic relevance scoring breakdown, sorting by profile strength, sorting by newest, pagination and limits, pagination limit validation (400), invalid enum filter rejection (400), published showcase discovery, draft post exclusion, postType filtering, authenticated viewer relationship state (`isFollowing`), unauthenticated discovery, explore overview combining creators/showcases/taxonomy, proficiency filtering, and stable tie-breaking for identical scores.
 
 ---
 
@@ -285,7 +287,49 @@ Post Association
 
 ---
 
-## 7. Academic Defense Q&A Highlights
+## 7. Phase 5 Architecture: Explore & Structured Discovery
+
+### 7.1 Multi-Attribute Discovery Pipeline
+```
+User Search / Structured Filters
+       │
+       ▼
+Prisma Relational Filter Pipeline (Indexed PostgreSQL queries)
+ ├── Category           (Slug or ID, e.g. "music")
+ ├── Skill / Role       (Name or Slug, e.g. "Classical Singer", "Cinematographer")
+ ├── Location / City    (Case-insensitive substring, e.g. "Jaipur", "Mumbai")
+ ├── Experience         (BEGINNER, INTERMEDIATE, ADVANCED, PROFESSIONAL, VETERAN)
+ ├── Availability       (AVAILABLE_FOR_COLLAB, OPEN_TO_WORK, FREELANCE, COMMISSION)
+ ├── Proficiency        (BEGINNER, INTERMEDIATE, ADVANCED, EXPERT)
+ └── Multi-Token Search ("Classical Singer in Jaipur" -> [Classical, Singer, Jaipur])
+       │
+       ▼
+Candidate Retrieval (STRICT: isPublic = true, status = PUBLISHED)
+       │
+       ▼
+Deterministic Relevance Scoring Engine (Explainable, Transparent, Zero Black-Box ML)
+       │
+       ▼
+Ranked Talent & Showcase Cards + Explainable Score Breakdown
+```
+
+### 7.2 REST API Surface (Explore & Discovery)
+
+| Method | Endpoint | Authorization | Description |
+|---|---|---|---|
+| `GET` | `/api/explore` | Public / Optional Auth | Overview combining top creators, featured showcases, and active taxonomy |
+| `GET` | `/api/explore/creators` | Public / Optional Auth | Multi-attribute creator discovery with deterministic scoring and score breakdowns |
+| `GET` | `/api/explore/posts` | Public / Optional Auth | Published showcase discovery filtered by category, skill, postType, and tags |
+
+### 7.3 Deterministic Scoring Formula
+Ranking is 100% explainable and verifiable without machine learning:
+$$\text{Relevance Score} = S_{\text{keyword}} (40) + S_{\text{category}} (20) + S_{\text{skill}} (25) + S_{\text{location}} (15) + S_{\text{experience}} (10) + S_{\text{availability}} (10) + S_{\text{quality}} (15) + S_{\text{depth}} (10)$$
+
+Ties are broken deterministically using `profileCompletionScore DESC`, then `createdAt DESC`, and `id ASC`.
+
+---
+
+## 8. Academic Defense Q&A Highlights
 
 1. **Why not store media files directly in PostgreSQL using BYTEA?**
    Storing binary blobs in relational tables degrades database performance, bloats backups, and prevents edge CDN caching. ArtVest stores references and rich metadata in PostgreSQL (`PostMedia`), while delegating asset delivery to a dedicated CDN provider (Cloudinary) or filesystem abstraction.
@@ -301,4 +345,11 @@ Post Association
 
 5. **Why structured Collaboration Inquiries rather than free-form Instant Messaging / WebSockets?**
    Direct unmoderated chat invites spam, harassment, and off-topic conversations before professional alignment is established. Structured inquiries require formal intent, an optional creative work reference, and explicit acceptance/decline by the creator, keeping the platform focused on serious creative partnerships while avoiding complex WebSocket infrastructure prematurely.
+
+6. **How is ArtVest's talent discovery different from Instagram's search or an AI recommendation engine?**
+   Instagram's search is keyword/hashtag-based and passive-consumption-driven, optimized for watch time. ArtVest is a structured talent discovery platform where queries operate over normalized domain attributes (Discipline, Craft Role, Location, Experience Tier, Availability Status, and Role-Specific Metadata). Ranking is transparent, explainable, and deterministic, ensuring that a search for *"Classical Singer in Jaipur"* objectively surfaces qualified creators without algorithmic bias or unexplainable black-box models.
+
+7. **How does ArtVest handle multi-token keyword searches without external search infrastructure like Elasticsearch?**
+   ArtVest tokenizes search queries into meaningful craft terms and executes parameterized, case-insensitive substring queries across candidate profile attributes using PostgreSQL composite indexes (`@@index([isPublic, primaryCategoryId])`, `@@index([isPublic, profileCompletionScore])`). Candidates matching all tokens are ranked with multi-hit score bonuses in $O(N)$ memory time, keeping the architecture lightweight, self-contained, and performant for the project scope.
+
 

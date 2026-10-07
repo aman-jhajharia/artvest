@@ -441,7 +441,76 @@ The interaction service is structured around distinct domain events that Phase 6
 
 ---
 
-## 8. Milestone Progress & Roadmap
+## 8. Phase 5 Architecture: Explore & Structured Discovery
+
+### 8.1 The Academic Differentiator: Structured Talent Discovery vs Algorithmic Consumption
+Traditional social platforms treat creators as uniform accounts with generic bios, forcing discovery through viral engagement algorithms and hashtag hacks. ArtVest implements a **relational, multi-attribute indexing and deterministic discovery engine** designed specifically for professional creative talent:
+
+```
+User Query / Filter Criteria
+       │
+       ▼
+Prisma Multi-Attribute Filter Pipeline (PostgreSQL Composite Indexes)
+ ├── Category Filter        (Music, Film, Dance, Photography, Design, Production)
+ ├── Skill / Role Filter    (Singer, Cinematographer, 3D Artist, Sound Engineer...)
+ ├── Location Match         (City, State, Country case-insensitive substring)
+ ├── Experience Tier        (BEGINNER, INTERMEDIATE, ADVANCED, PROFESSIONAL, VETERAN)
+ ├── Availability Status    (AVAILABLE_FOR_COLLAB, OPEN_TO_WORK, FREELANCE, COMMISSION)
+ ├── Skill Proficiency      (BEGINNER, INTERMEDIATE, ADVANCED, EXPERT)
+ └── Multi-Token Keyword    ("Classical Singer in Jaipur" -> [Classical, Singer, Jaipur])
+       │
+       ▼
+Candidate Candidate Retrieval (STRICT: isPublic = true, status = PUBLISHED)
+       │
+       ▼
+Deterministic Relevance Scoring Engine (Zero Black-Box ML / No LLMs)
+       │
+       ▼
+Ranked Creators & Showcases + Explainable Score Breakdown
+```
+
+### 8.2 Deterministic Relevance Scoring Formula
+ArtVest strictly avoids opaque machine learning or unexplainable recommendation models. Instead, ranking is calculated using a **transparent, deterministic, explainable point formula**:
+
+$$\text{Relevance Score} = S_{\text{keyword}} + S_{\text{category}} + S_{\text{skill}} + S_{\text{location}} + S_{\text{experience}} + S_{\text{availability}} + S_{\text{quality}} + S_{\text{depth}}$$
+
+| Component | Max Points | Evaluation Logic |
+|---|---|---|
+| **$S_{\text{keyword}}$ (Keyword Match)** | 40 pts | +30 for exact name/stageName match, +20 for partial match, +15 for headline match, +12 for location match, +10 for skill name token hits, +6 for bio match. |
+| **$S_{\text{category}}$ (Category Match)** | 20 pts | +20 if creator's primary category matches requested category filter or keyword. |
+| **$S_{\text{skill}}$ (Skill / Role Match)** | 25 pts | +25 if creator possesses requested skill as their **Primary Skill** (`isPrimary: true`); +15 if secondary skill. |
+| **$S_{\text{location}}$ (Location Match)** | 15 pts | +15 if creator's stored city or location matches location filter or keyword. |
+| **$S_{\text{experience}}$ (Experience Match)** | 10 pts | +10 if creator matches requested experience tier (`PROFESSIONAL`, `ADVANCED`, etc.). |
+| **$S_{\text{availability}}$ (Availability Match)** | 10 pts | +10 for matching explicit availability filter; +6 passive boost for active collaboration readiness (`AVAILABLE_FOR_COLLAB`). |
+| **$S_{\text{quality}}$ (Profile Quality)** | 15 pts | $\min(15, \lfloor\text{profileCompletionScore} \times 0.1\rfloor + (\text{isVerified} \times 5))$. |
+| **$S_{\text{depth}}$ (Portfolio Depth)** | 10 pts | $\min(10, \text{publishedShowcasesCount} \times 2)$. |
+
+**Stable Tie-Breaking**: When two candidates have identical relevance scores, ordering deterministically falls back to `profileCompletionScore DESC`, then `createdAt DESC`, with unique `id ASC` as the final deterministic tie-breaker.
+
+### 8.3 REST API Surface (Explore & Discovery)
+
+| Method | Endpoint | Authorization | Description |
+|---|---|---|---|
+| `GET` | `/api/explore` | Public / Optional Auth | Overview combining top creators, featured showcases, and active category taxonomy |
+| `GET` | `/api/explore/creators` | Public / Optional Auth | Multi-attribute creator search with deterministic ranking and explainable score breakdowns |
+| `GET` | `/api/explore/posts` | Public / Optional Auth | Published creative showcase discovery by category, skill, postType, and tags |
+
+### 8.4 Database Indexing Decisions
+To guarantee sub-10ms response times across large talent catalogs, composite indexes were applied via migration `20261007085649_explore_discovery_phase5`:
+- `CreatorProfile`: `@@index([isPublic, primaryCategoryId])` — speeds up discipline-scoped public queries.
+- `CreatorProfile`: `@@index([isPublic, profileCompletionScore])` — optimizes profile strength sort order.
+- `CreatorProfile`: `@@index([isPublic, createdAt])` — accelerates newest creator discovery.
+- `Post`: `@@index([status, categoryId])` — guarantees fast published showcase category filtering.
+- `Post`: `@@index([status, publishedAt])` — accelerates chronological feed and popular showcase exploration.
+
+### 8.5 URL-Driven Client Architecture
+The frontend Explore experience (`/app/explore` and `/explore`) mirrors all query and filter state directly into URL Search Parameters:
+- `?tab=creators&q=Classical+Singer&location=Jaipur&experience=PROFESSIONAL&sort=relevance&page=1`
+- Preserves full browser history (back/forward navigation), allows bookmarking and sharing of custom discovery queries, and survives page refreshes without losing state.
+
+---
+
+## 9. Milestone Progress & Roadmap
 
 | Phase | Milestone | Scope / Deliverables | Status |
 |---|---|---|---|
@@ -450,8 +519,14 @@ The interaction service is structured around distinct domain events that Phase 6
 | **Phase 2** | Creator Identity & Skills | Profile editor, dynamic skills management, proficiencies, role metadata validation, completion scoring, public creator discovery, portfolio foundation, Tests (27/27) | **COMPLETED** |
 | **Phase 3** | Posts & Multimedia | Multimedia content engine (IMAGE, VIDEO, AUDIO, TEXT, SHOWCASE), Cloudinary upload abstraction, Creator Studio (`/app/studio`), live chronological feed (`/app`), waveform audio player, 5-step showcase creator flow, Tests (43/43) | **COMPLETED** |
 | **Phase 4** | Social Graph & Interaction | Relational social graph: Post appreciation likes, Saved showcases/bookmarks, Nested comment discussions & replies, Creator follow graph, Structured collaboration inquiries & workflow, Studio inquiries management, Tests (83/83) | **COMPLETED** |
-| **Phase 5** | Explore & Discovery | Multi-criteria structured discovery (Category, Role, City, Availability) | Next Milestone |
+| **Phase 5** | Explore & Structured Discovery | Multi-attribute structured discovery (Category, Skill, Location, Experience, Availability, Proficiency), multi-token keyword search ("Classical Singer in Jaipur"), explainable deterministic relevance ranking, URL state sync, responsive sidebar/drawer, Tests (108/108) | **COMPLETED** |
 | **Phase 6** | Studio & Notifications | Creator studio analytics, event-driven notification alerts | Upcoming |
 | **Phase 7** | Midterm Stabilization | End-to-end integration, academic viva prep, demo data seeding | **MIDTERM VIVA** |
-| **Phase 8-13**| Community Projects | Multidisciplinary teams, simulated virtual credit wallet, community backing | **END-TERM VIVA**|
+| **Phase 8** | Creative Projects | Project creation, creative briefs, role definitions, milestone tracking | Upcoming |
+| **Phase 9** | Multidisciplinary Teams | Team invitations, role fulfillment, collaborative project workspace | Upcoming |
+| **Phase 10** | ArtCredits | Simulated virtual credit wallet, milestone allocations, non-cash economy | Upcoming |
+| **Phase 11** | Community Backing | Project crowdfunding, community micro-backing, reward tiers | Upcoming |
+| **Phase 12** | Analytics & Recommendations | Platform analytics, discovery heuristics, engagement insights | Upcoming |
+| **Phase 13** | Final Polish & Viva Defense | Performance tuning, security audit, deployment, comprehensive thesis documentation | **END-TERM VIVA** |
+
 
