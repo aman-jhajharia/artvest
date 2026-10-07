@@ -78,6 +78,13 @@ enum ReportStatus {
   ACTION_TAKEN
 }
 
+enum InquiryStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  WITHDRAWN
+}
+
 // ==========================================
 // USER & PROFILES
 // ==========================================
@@ -104,6 +111,8 @@ model User {
   saves                 Save[]
   following             Follow[]          @relation("UserFollowing")
   followers             Follow[]          @relation("UserFollowers")
+  sentInquiries         CollaborationInquiry[] @relation("SentCollaborationInquiries")
+  receivedInquiries     CollaborationInquiry[] @relation("ReceivedCollaborationInquiries")
 
   // System & Moderation relations
   notificationsReceived Notification[]    @relation("RecipientNotifications")
@@ -254,6 +263,7 @@ model Post {
   comments          Comment[]
   likes             Like[]
   saves             Save[]
+  collaborationInquiries CollaborationInquiry[]
   reports           Report[]
 
   @@index([authorId])
@@ -349,6 +359,27 @@ model Follow {
   @@unique([followerId, followingId])
   @@index([followerId])
   @@index([followingId])
+}
+
+model CollaborationInquiry {
+  id          String        @id @default(cuid())
+  senderId    String
+  recipientId String
+  postId      String?
+  message     String
+  status      InquiryStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  sender      User          @relation("SentCollaborationInquiries", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient   User          @relation("ReceivedCollaborationInquiries", fields: [recipientId], references: [id], onDelete: Cascade)
+  post        Post?         @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([postId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 // ==========================================
