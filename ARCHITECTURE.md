@@ -293,7 +293,155 @@ Post Published to Showcase Feed & Portfolio
 
 ---
 
-## 7. Milestone Progress & Roadmap
+## 7. Phase 4 Architecture: Social Graph & Creative Interaction
+
+### 7.1 Conceptual Architecture
+The Social Graph links users, published creative showcases, and creators through relational interactions and structured collaboration expressions:
+
+```
+User
+ │
+ ├── Like ──────────→ Post (unique [postId, userId])
+ │
+ ├── Save ──────────→ Post (unique [postId, userId])
+ │
+ ├── Comment ───────→ Post (with self-referencing parentId for nested replies)
+ │
+ ├── Follow ────────→ Creator / User (unique [followerId, followingId], prevents self-follow)
+ │
+ └── CollaborationInquiry
+          │
+          ├── sender (User)
+          ├── recipient (User)
+          └── referenced Post (Post?, optional inspiration)
+```
+
+### 7.2 Database Entities & Relational Schema
+Extended in Prisma schema (`schema.prisma`):
+
+1. **Like**:
+   - `id`: `String @id @default(cuid())`
+   - `postId`: `String` (foreign key to `Post`, cascades on delete)
+   - `userId`: `String` (foreign key to `User`, cascades on delete)
+   - `createdAt`: `DateTime @default(now())`
+   - Constraints: `@@unique([postId, userId])`, `@@index([postId])`, `@@index([userId])`.
+   - Guaranteed uniqueness enforced at PostgreSQL engine level.
+
+2. **Save (Bookmarks)**:
+   - `id`: `String @id @default(cuid())`
+   - `postId`: `String` (foreign key to `Post`, cascades on delete)
+   - `userId`: `String` (foreign key to `User`, cascades on delete)
+   - `createdAt`: `DateTime @default(now())`
+   - Constraints: `@@unique([postId, userId])`, `@@index([postId])`, `@@index([userId])`.
+
+3. **Comment**:
+   - `id`: `String @id @default(cuid())`
+   - `postId`: `String` (foreign key to `Post`, cascades on delete)
+   - `authorId`: `String` (foreign key to `User`, cascades on delete)
+   - `content`: `String` (1 to 2,000 characters, trimmed, required)
+   - `parentId`: `String?` (self-referencing foreign key to `Comment`, allows 1-level nested replies)
+   - `createdAt`, `updatedAt`: Timestamps
+   - Constraints: `@@index([postId])`, `@@index([authorId])`, `@@index([parentId])`.
+
+4. **Follow**:
+   - `id`: `String @id @default(cuid())`
+   - `followerId`: `String` (foreign key to `User`, cascades on delete)
+   - `followingId`: `String` (foreign key to `User`, cascades on delete)
+   - `createdAt`: `DateTime @default(now())`
+   - Constraints: `@@unique([followerId, followingId])`, `@@index([followerId])`, `@@index([followingId])`.
+   - Server-side rule: User cannot follow themselves (`followerId !== followingId`).
+
+5. **CollaborationInquiry**:
+   - `id`: `String @id @default(cuid())`
+   - `senderId`: `String` (foreign key to `User`, cascades on delete)
+   - `recipientId`: `String` (foreign key to `User`, cascades on delete)
+   - `postId`: `String?` (foreign key to `Post`, sets null on post delete)
+   - `message`: `String` (10 to 2,000 characters, trimmed)
+   - `status`: `InquiryStatus` enum (`PENDING`, `ACCEPTED`, `DECLINED`, `WITHDRAWN`)
+   - `createdAt`, `updatedAt`: Timestamps
+   - Constraints: `@@index([senderId])`, `@@index([recipientId])`, `@@index([postId])`.
+
+### 7.3 Post Interaction Boundary Rules
+Only `PUBLISHED` posts can be interacted with:
+- Likes, Saves, and Comments on `DRAFT`, `ARCHIVED`, or non-existent posts fail with HTTP 400 `CANNOT_INTERACT_WITH_UNPUBLISHED_POST`.
+- Collaboration Inquiries referencing unpublished posts fail with HTTP 400.
+- All rules are enforced strictly server-side by checking `post.status === PostStatus.PUBLISHED`.
+
+### 7.4 Collaboration Inquiry Lifecycle State Machine
+```
+                           [ User sends Inquiry ]
+                                     │
+                                     ▼
+                            +-----------------+
+                            |     PENDING     |
+                            +-----------------+
+                              /      |      \
+        Sender Withdraws     /       |       \   Recipient Declines
+                            /        |        \
+                           v         |         v
+                   +-----------+     |    +----------+
+                   | WITHDRAWN |     |    | DECLINED |
+                   +-----------+     |    +----------+
+                                     |
+                             Recipient Accepts
+                                     |
+                                     v
+                              +------------+
+                              |  ACCEPTED  |
+                              +------------+
+```
+
+Strict authorization enforcement:
+- **Sender can**: Create inquiry, view sent inquiries (`GET /api/collaboration/inquiries/sent`), withdraw their own pending inquiry (`PATCH ... { status: WITHDRAWN }`).
+- **Sender cannot**: Accept or decline their own inquiry (HTTP 403 `FORBIDDEN_INQUIRY_ACTION`).
+- **Recipient can**: View received inquiries (`GET /api/collaboration/inquiries/received`), accept (`PATCH ... { status: ACCEPTED }`), decline (`PATCH ... { status: DECLINED }`).
+- **Recipient cannot**: Withdraw on behalf of sender or modify inquiry message.
+- **Third parties cannot**: View or mutate inquiries between other users.
+- **Terminal states**: Once `ACCEPTED`, `DECLINED`, or `WITHDRAWN`, status cannot be transitioned again (HTTP 400 `INVALID_INQUIRY_STATE`).
+
+### 7.5 Phase 4 REST API Surface
+
+| Method | Endpoint | Authorization | Description |
+|---|---|---|---|
+| `POST` | `/api/posts/:postId/like` | Authenticated | Likes a published post (idempotent; returns `{ liked: true, count }`) |
+| `DELETE` | `/api/posts/:postId/like` | Authenticated | Unlikes a post (returns `{ liked: false, count }`) |
+| `GET` | `/api/posts/:postId/likes` | Public / Optional Auth | Returns appreciation count and whether current viewer liked the post |
+| `POST` | `/api/posts/:postId/save` | Authenticated | Bookmarks a published post (idempotent; returns `{ saved: true, count }`) |
+| `DELETE` | `/api/posts/:postId/save` | Authenticated | Removes post from user's saved collection |
+| `GET` | `/api/user/saved` | Authenticated | Paginated list of user's saved showcases with full post and creator details |
+| `POST` | `/api/posts/:postId/comments` | Authenticated | Adds comment or reply (supports `parentId` for nesting; max 2,000 chars) |
+| `GET` | `/api/posts/:postId/comments` | Public | Returns top-level comments with nested replies and total count |
+| `PATCH` | `/api/comments/:commentId` | Authenticated (Author) | Updates comment content; strictly rejects unauthorized users (403) |
+| `DELETE` | `/api/comments/:commentId` | Authenticated (Author/Admin) | Deletes comment and cascaded replies |
+| `POST` | `/api/creators/:creatorId/follow` | Authenticated | Follows creator (accepts `userId` or `creatorProfileId`; prevents self-follow) |
+| `DELETE` | `/api/creators/:creatorId/follow` | Authenticated | Unfollows creator |
+| `GET` | `/api/user/followers` | Authenticated | Paginated list of followers |
+| `GET` | `/api/user/following` | Authenticated | Paginated list of creators the user follows |
+| `POST` | `/api/collaboration/inquiries` | Authenticated | Sends structured collaboration inquiry to creator with optional post link |
+| `GET` | `/api/collaboration/inquiries/sent` | Authenticated | Retrieves sent inquiries with recipient details, referenced post, and status |
+| `GET` | `/api/collaboration/inquiries/received` | Authenticated | Retrieves received inquiries with sender details and action buttons |
+| `PATCH` | `/api/collaboration/inquiries/:id` | Authenticated (Participant) | Updates status (`ACCEPTED`/`DECLINED` by recipient, `WITHDRAWN` by sender) |
+
+### 7.6 N+1 Query Prevention & Performance
+In `PostService.getShowcaseFeed`, `getPostById`, `getPublicCreatorPosts`, and `getCreatorPosts`:
+- Relational aggregation `_count: { select: { likes: true, comments: true, saves: true } }` runs in the initial database query.
+- When viewer is authenticated, conditional relation selection:
+  - `likes: { where: { userId }, select: { id: true } }`
+  - `saves: { where: { userId }, select: { id: true } }`
+  - `author.followers: { where: { followerId: userId }, select: { id: true } }`
+- Resolves all interaction state (`likeCount`, `commentCount`, `saveCount`, `likedByMe`, `savedByMe`, `followingCreator`) in a single query with zero separate N+1 roundtrips.
+
+### 7.7 Future Notification Hooks (Phase 6 Integration Points)
+The interaction service is structured around distinct domain events that Phase 6 will consume to dispatch asynchronous notification alerts:
+- `EVENT_POST_LIKED`: Dispatched when `likePost` succeeds (actor: liker, recipient: post author).
+- `EVENT_COMMENT_CREATED`: Dispatched when `createComment` succeeds (recipient: post author or parent comment author).
+- `EVENT_CREATOR_FOLLOWED`: Dispatched when `followCreator` succeeds (recipient: followed creator).
+- `EVENT_INQUIRY_CREATED`: Dispatched when `createInquiry` succeeds (recipient: creator).
+- `EVENT_INQUIRY_STATUS_CHANGED`: Dispatched when inquiry is accepted/declined (recipient: sender).
+
+---
+
+## 8. Milestone Progress & Roadmap
 
 | Phase | Milestone | Scope / Deliverables | Status |
 |---|---|---|---|
@@ -301,8 +449,9 @@ Post Published to Showcase Feed & Portfolio
 | **Phase 1** | Auth & Onboarding | Google OAuth verification, HttpOnly sessions, RBAC, Onboarding UI, Taxonomy API, Tests (13/13) | **COMPLETED** |
 | **Phase 2** | Creator Identity & Skills | Profile editor, dynamic skills management, proficiencies, role metadata validation, completion scoring, public creator discovery, portfolio foundation, Tests (27/27) | **COMPLETED** |
 | **Phase 3** | Posts & Multimedia | Multimedia content engine (IMAGE, VIDEO, AUDIO, TEXT, SHOWCASE), Cloudinary upload abstraction, Creator Studio (`/app/studio`), live chronological feed (`/app`), waveform audio player, 5-step showcase creator flow, Tests (43/43) | **COMPLETED** |
-| **Phase 4** | Social Graph & Backing | Chronological feed social interactions: Likes, Comments, Saves, Follows, Collaborator Inquiries | Upcoming |
-| **Phase 5** | Explore & Discovery | Multi-criteria structured discovery (Category, Role, City, Availability) | Upcoming |
-| **Phase 6** | Studio & Notifications | Creator studio metrics, notification alerts | Upcoming |
+| **Phase 4** | Social Graph & Interaction | Relational social graph: Post appreciation likes, Saved showcases/bookmarks, Nested comment discussions & replies, Creator follow graph, Structured collaboration inquiries & workflow, Studio inquiries management, Tests (83/83) | **COMPLETED** |
+| **Phase 5** | Explore & Discovery | Multi-criteria structured discovery (Category, Role, City, Availability) | Next Milestone |
+| **Phase 6** | Studio & Notifications | Creator studio analytics, event-driven notification alerts | Upcoming |
 | **Phase 7** | Midterm Stabilization | End-to-end integration, academic viva prep, demo data seeding | **MIDTERM VIVA** |
 | **Phase 8-13**| Community Projects | Multidisciplinary teams, simulated virtual credit wallet, community backing | **END-TERM VIVA**|
+

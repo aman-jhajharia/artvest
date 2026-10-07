@@ -22,9 +22,11 @@ Traditional platforms treat every creator identically with a generic bio and pho
 - **Phase 0**: Architecture & Foundation (Monorepo, Next.js 16, Express, Prisma, PostgreSQL).
 - **Phase 1**: Authentication & Onboarding (Google OAuth, HttpOnly JWT, RBAC, 5-step onboarding, deterministic score).
 - **Phase 2**: Creator Identity, Profiles & Portfolio Foundation (Live profile viewing & editing, dynamic skill management with proficiencies, discipline-specific role metadata validation, explainable profile strength scoring, public profile discovery `/creator/:creatorId`, privacy controls).
-- **Phase 3 (Current Milestone - Completed)**: **Multimedia Portfolio & Showcase Posts** (Extensible media model: Image, Video, Audio, Text, Showcase; Cloudinary/local media abstraction; 5-step showcase creator flow; Creator Studio `/app/studio` with Drafts, Published, and Featured work; interactive waveform audio player; live chronological showcase feed `/app`; tests 43/43).
-- **Phase 4 (Upcoming)**: Social Graph & Community Backing (Likes, Comments, Bookmarks, Follows, Collaborator Inquiries).
-- **Phase 5 (End-Term Milestone)**: Creative Projects, Multidisciplinary Teams & Virtual Credit Backing Simulation.
+- **Phase 3**: Multimedia Portfolio & Showcase Posts (Extensible media model: Image, Video, Audio, Text, Showcase; Cloudinary/local media abstraction; 5-step showcase creator flow; Creator Studio `/app/studio` with Drafts, Published, and Featured work; interactive waveform audio player; live chronological showcase feed `/app`; tests 43/43).
+- **Phase 4 (Current Milestone - Completed)**: **Social Graph & Creative Interaction** (Post likes & unlikes with unique constraint, saved bookmarks with paginated `/app/saved`, nested comments & replies with ownership rules, creator follow/unfollow graph, structured collaboration inquiries with PENDING/ACCEPTED/DECLINED/WITHDRAWN lifecycle state machine, Studio inquiries manager, tests 83/83).
+- **Phase 5 (Next Milestone)**: Explore & Discovery (Multi-criteria structured creator and showcase discovery).
+- **Phase 6**: Notifications & Studio Analytics.
+- **Phase 7-13**: Creative Projects, Multidisciplinary Teams & Community Backing.
 
 ---
 
@@ -159,10 +161,11 @@ npm run dev:frontend  # Next.js on http://localhost:3000
 ```bash
 npm test
 ```
-The test suite executes 43/43 automated integration tests (100% passing):
+The test suite executes 83/83 automated integration tests (100% passing):
 - **Phase 1 (13 tests)**: Google OAuth verification, session cookie issuance, re-onboarding prevention, RBAC elevation blocking.
 - **Phase 2 (14 tests)**: Creator profile retrieval, partial PATCH updates, validation rejection, 403 enforcement on non-creators, dynamic skill addition, duplicate skill conflict (409), skill deletion, session scoping isolation, roleAttributes discipline validation, deterministic profile completion, dynamic score recalculation, public profile visibility & privacy (`isPublic`), and user/creator separation.
 - **Phase 3 (16 tests)**: Showcase draft creation, studio retrieval, draft modification, cross-creator modification isolation (403), draft deletion, draft-to-published lifecycle transition, incomplete post publishing rejection (400), draft privacy from public feed, published feed appearance, creator portfolio integration, featured ordering priority, standard USER restriction (403), unsupported media format rejection (400), file size limit enforcement (400), mutation ownership enforcement, feed pagination.
+- **Phase 4 (40 tests)**: Like/unlike posts, unique constraints preventing duplicate likes, save/unsave posts, unique constraint on saves, draft post interaction rejection (400), comments and nested replies, self-reply prevention, cross-post parent rejection, owner comment edits and deletions, non-owner comment mutation blocking (403), follow/unfollow creators, self-follow prevention, follower/following lists, structured collaboration inquiry lifecycle (create, list sent/received, sender withdraw, recipient accept/decline, cross-user modification rejection, invalid status transition blocking, draft post reference rejection).
 
 ---
 
@@ -231,16 +234,71 @@ Post Association
 
 ---
 
-## 6. Academic Defense Q&A Highlights
+## 6. Phase 4 Architecture: Social Graph & Creative Interaction
+
+### 6.1 Relational Social Graph & Interaction Model
+```
+             User (Viewer / Creator)
+             │
+   ┌─────────┼──────────┬──────────────┬────────────────┐
+   │ 1       │ 1        │ 1            │ 1 (follower)   │ 1 (sender)
+   ▼ *       ▼ *        ▼ *            ▼ *              ▼ *
+  Like      Save     Comment         Follow     CollaborationInquiry
+   │ *       │ *        │ *            │ * (following)  │ * (recipient)
+   │         │          ├──────────┐   │                ├──→ User (Creator)
+   ▼ 1       ▼ 1        ▼ 1        │ * ▼ 1              │
+ ┌─────────────────────────┐       └── Comment (parent) └──→ Post (optional)
+ │  Post (PUBLISHED only)  │
+ └─────────────────────────┘
+```
+
+- **Post Interactions Restricted to PUBLISHED Work**: Backend strictly forbids likes, saves, comments, or post-referenced inquiries against `DRAFT`, `ARCHIVED`, or `DELETED` posts.
+- **Relational Integrity via Database Constraints**:
+  - `Like`: `@@unique([userId, postId])` enforces single-like idempotency at database level.
+  - `Save`: `@@unique([userId, postId])` prevents duplicate bookmarks.
+  - `Follow`: `@@unique([followerId, followingId])` prevents duplicate follows; backend rejects self-follows.
+- **Nested Discussions**: `Comment` supports 1-level nested replies via `parentId` referencing root comment; self-replies and cross-post parent associations are rejected.
+- **Structured Collaboration**: `CollaborationInquiry` transitions cleanly (`PENDING` $\rightarrow$ `ACCEPTED` | `DECLINED` | `WITHDRAWN`), keeping communication formal and asynchronous without unmonitored chat/DMs.
+
+### 6.2 REST API Surface (Interactions & Social Graph)
+
+| Method | Endpoint | Authorization | Description |
+|---|---|---|---|
+| `POST` | `/api/posts/:postId/like` | Authenticated | Likes a published post; idempotent with DB unique constraint |
+| `DELETE`| `/api/posts/:postId/like` | Authenticated | Unlikes a post; decrements like count |
+| `GET` | `/api/posts/:postId/likes` | Public | Returns like count and whether current viewer liked the post |
+| `POST` | `/api/posts/:postId/save` | Authenticated | Bookmarks a published post to user's saved collection |
+| `DELETE`| `/api/posts/:postId/save` | Authenticated | Removes post from saved collection |
+| `GET` | `/api/user/saved` | Authenticated | Paginated list of user's saved showcase posts |
+| `POST` | `/api/posts/:postId/comments`| Authenticated | Adds comment or reply (`parentId` optional, 1-2000 chars) |
+| `GET` | `/api/posts/:postId/comments`| Public | Paginated list of comments with nested replies |
+| `PATCH`| `/api/comments/:commentId` | Authenticated (Author) | Edits comment content; restricts strictly to original author |
+| `DELETE`| `/api/comments/:commentId` | Authenticated (Author/Admin) | Deletes comment and cascades child replies |
+| `POST` | `/api/creators/:creatorId/follow` | Authenticated | Follows creator by `userId` or `creatorProfileId`; blocks self-follow |
+| `DELETE`| `/api/creators/:creatorId/follow` | Authenticated | Unfollows creator |
+| `GET` | `/api/user/followers` | Authenticated | Paginated list of users following the authenticated user |
+| `GET` | `/api/user/following` | Authenticated | Paginated list of creators the authenticated user follows |
+| `POST` | `/api/collaboration/inquiries` | Authenticated | Submits structured inquiry to creator with optional work reference |
+| `GET` | `/api/collaboration/inquiries/sent` | Authenticated | Paginated list of inquiries sent by the authenticated user |
+| `GET` | `/api/collaboration/inquiries/received`| Authenticated | Paginated list of inquiries received by creator |
+| `PATCH`| `/api/collaboration/inquiries/:id` | Authenticated (Sender/Recipient) | Status transition (`WITHDRAWN` for sender, `ACCEPTED`/`DECLINED` for recipient) |
+
+---
+
+## 7. Academic Defense Q&A Highlights
 
 1. **Why not store media files directly in PostgreSQL using BYTEA?**
    Storing binary blobs in relational tables degrades database performance, bloats backups, and prevents edge CDN caching. ArtVest stores references and rich metadata in PostgreSQL (`PostMedia`), while delegating asset delivery to a dedicated CDN provider (Cloudinary) or filesystem abstraction.
 
 2. **How does ArtVest prevent client-side privilege escalation?**
-   Endpoints strictly derive identity from the verified JWT in the `HttpOnly` cookie via `req.user.id`. Client-supplied user IDs in request bodies are ignored. All creator mutation endpoints require `requireRole(UserRole.CREATOR)` and verify `post.authorId === req.user.id`.
+   Endpoints strictly derive identity from the verified JWT in the `HttpOnly` cookie via `req.user.id`. Client-supplied user IDs in request bodies are ignored. All creator mutation endpoints require `requireRole(UserRole.CREATOR)` and verify `post.authorId === req.user.id`. Similarly, comment and collaboration updates verify record ownership (`comment.userId === req.user.id`, `inquiry.senderId === req.user.id` or `inquiry.recipientId === req.user.id`).
 
-3. **How does ArtVest ensure incomplete drafts are not published?**
-   The `validatePostForPublishing` validator strictly verifies that an `IMAGE` post has at least one image, a `VIDEO` post has a video file, and an `AUDIO` post has an audio track, alongside a valid title and category, before allowing status transition to `PUBLISHED`.
+3. **How are duplicate likes, saves, and follows prevented under high concurrency?**
+   Application-layer checks alone suffer from race conditions (TOCTOU). ArtVest enforces relational integrity via composite unique constraints (`@@unique([userId, postId])` for `Like` and `Save`, and `@@unique([followerId, followingId])` for `Follow`). Any concurrent duplicate inserts are rejected deterministically by the database engine.
 
-4. **Why is the Showcase Feed initially chronological rather than algorithmic?**
-   Chronological feeds provide a transparent, deterministic foundation that avoids algorithmic bias and engagement manipulation. Future Phase 4 recommendation engines will build on this solid substrate.
+4. **How does ArtVest prevent the N+1 query problem when loading the feed with social metrics?**
+   Instead of querying likes, saves, and comments separately for each post in a loop, ArtVest leverages Prisma's relational count aggregations (`_count: { select: { likes: true, comments: true, saves: true } }`) in the primary query. Viewer interaction states (`likedByMe`, `savedByMe`, `followingCreator`) are resolved using batched queries keyed by `postId in [...]` and `authorId in [...]`, executing in constant $O(1)$ database trips regardless of page size.
+
+5. **Why structured Collaboration Inquiries rather than free-form Instant Messaging / WebSockets?**
+   Direct unmoderated chat invites spam, harassment, and off-topic conversations before professional alignment is established. Structured inquiries require formal intent, an optional creative work reference, and explicit acceptance/decline by the creator, keeping the platform focused on serious creative partnerships while avoiding complex WebSocket infrastructure prematurely.
+
