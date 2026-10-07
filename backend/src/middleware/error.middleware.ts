@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { ZodError } from 'zod';
 import { AppError, sendError } from '../utils/apiResponse.js';
 import { logger } from '../utils/logger.js';
 import { config } from '../config/index.js';
@@ -11,6 +12,16 @@ export function errorMiddleware(
   _next: NextFunction
 ) {
   logger.error('Unhandled request error:', err.message, err.stack);
+
+  if (err instanceof ZodError) {
+    return res.status(400).json(
+      sendError(
+        'Validation failed',
+        'VALIDATION_ERROR',
+        err.flatten().fieldErrors
+      )
+    );
+  }
 
   if (err instanceof AppError) {
     return res.status(err.statusCode).json(

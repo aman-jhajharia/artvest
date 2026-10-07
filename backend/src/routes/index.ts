@@ -7,10 +7,13 @@ import { userRoutes } from './user.routes.js';
 import { postRoutes } from './post.routes.js';
 import { feedRoutes } from './feed.routes.js';
 import { mediaRoutes } from './media.routes.js';
+import { commentRoutes } from './comment.routes.js';
+import { collaborationRoutes } from './collaboration.routes.js';
 import { TaxonomyController } from '../controllers/taxonomy.controller.js';
 import { CreatorController } from '../controllers/creator.controller.js';
 import { PostController } from '../controllers/post.controller.js';
-import { optionalAuth } from '../middleware/auth.middleware.js';
+import { InteractionController } from '../controllers/interaction.controller.js';
+import { requireAuth, optionalAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
@@ -23,10 +26,16 @@ router.use('/user', userRoutes);
 router.use('/posts', postRoutes);
 router.use('/feed', feedRoutes);
 router.use('/media', mediaRoutes);
+router.use('/comments', commentRoutes);
+router.use('/collaboration', collaborationRoutes);
 
 // Public creator profile and showcase discovery
 router.get('/creators/:creatorId', optionalAuth, CreatorController.getPublicProfile);
 router.get('/creators/:creatorId/posts', optionalAuth, PostController.getPublicCreatorPosts);
+
+// Creator Follow Graph
+router.post('/creators/:creatorId/follow', requireAuth, InteractionController.followCreator);
+router.delete('/creators/:creatorId/follow', requireAuth, InteractionController.unfollowCreator);
 
 // Taxonomy endpoints
 router.get('/categories', TaxonomyController.getCategories);
