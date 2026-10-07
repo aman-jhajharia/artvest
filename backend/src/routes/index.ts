@@ -9,6 +9,7 @@ import { feedRoutes } from './feed.routes.js';
 import { mediaRoutes } from './media.routes.js';
 import { commentRoutes } from './comment.routes.js';
 import { collaborationRoutes } from './collaboration.routes.js';
+import { exploreRoutes } from './explore.routes.js';
 import { TaxonomyController } from '../controllers/taxonomy.controller.js';
 import { CreatorController } from '../controllers/creator.controller.js';
 import { PostController } from '../controllers/post.controller.js';
@@ -28,6 +29,7 @@ router.use('/feed', feedRoutes);
 router.use('/media', mediaRoutes);
 router.use('/comments', commentRoutes);
 router.use('/collaboration', collaborationRoutes);
+router.use('/explore', exploreRoutes);
 
 // Public creator profile and showcase discovery
 router.get('/creators/:creatorId', optionalAuth, CreatorController.getPublicProfile);
