@@ -17,16 +17,15 @@ Traditional platforms treat every creator identically with a generic bio and pho
 - *"Cinematographer + Documentary + Mumbai"*
 - *"Female Actor + Hindi + Available for Collaboration"*
 - *"3D Artist + Blender + Virtual Production"*
-
 ### Academic Development Milestones
 - **Phase 0**: Architecture & Foundation (Monorepo, Next.js 16, Express, Prisma, PostgreSQL).
 - **Phase 1**: Authentication & Onboarding (Google OAuth, HttpOnly JWT, RBAC, 5-step onboarding, deterministic score).
 - **Phase 2**: Creator Identity, Profiles & Portfolio Foundation (Live profile viewing & editing, dynamic skill management with proficiencies, discipline-specific role metadata validation, explainable profile strength scoring, public profile discovery `/creator/:creatorId`, privacy controls).
-- **Phase 3**: Multimedia Portfolio & Showcase Posts (Extensible media model: Image, Video, Audio, Text, Showcase; Cloudinary/local media abstraction; 5-step showcase creator flow; Creator Studio `/app/studio` with Drafts, Published, and Featured work; interactive waveform audio player; live chronological showcase feed `/app`; tests 43/43).
-- **Phase 4**: Social Graph & Creative Interaction (Post likes & unlikes with unique constraint, saved bookmarks with paginated `/app/saved`, nested comments & replies with ownership rules, creator follow/unfollow graph, structured collaboration inquiries with PENDING/ACCEPTED/DECLINED/WITHDRAWN lifecycle state machine, Studio inquiries manager, tests 83/83).
--**Phase 5**: Explore & Structured Discovery (Multi-attribute discovery by discipline, skill, location, experience, availability, and proficiency; multi-token keyword matching; transparent deterministic relevance scoring; URL query state synchronization; responsive filter sidebar & drawer; tests 108/108).
-- **Phase 6 (Current Milestone - Completed)**: **Creator Studio & Notifications** (Private Creator Studio dashboard `/app/studio` with verified real metrics, deterministic top-post engagement ranking, post performance analytics; decoupled event-driven in-app notifications `/app/notifications`, live unread counter badge, read state transitions, self-notification suppression, debounced domain events; tests 131/131).
-- **Phase 7 (Next Milestone)**: Midterm Stabilization (End-to-end integration, academic viva prep, demo data seeding).
+- **Phase 3**: Multimedia Portfolio & Showcase Posts (Extensible media model: Image, Video, Audio, Text, Showcase; Cloudinary/local media abstraction; 5-step showcase creator flow; Creator Studio `/app/studio` with Drafts, Published, and Featured work; interactive waveform audio player; live chronological showcase feed `/app`).
+- **Phase 4**: Social Graph & Creative Interaction (Post likes & unlikes with unique constraint, saved bookmarks with paginated `/app/saved`, nested comments & replies with ownership rules, creator follow/unfollow graph, structured collaboration inquiries with PENDING/ACCEPTED/DECLINED/WITHDRAWN lifecycle state machine, Studio inquiries manager).
+- **Phase 5**: Explore & Structured Discovery (Multi-attribute discovery by discipline, skill, location, experience, availability, and proficiency; multi-token keyword matching; transparent deterministic relevance scoring; URL query state synchronization; responsive filter sidebar & drawer; total 108/108 tests).
+- **Phase 6**: Creator Studio & Notifications (Private Creator Studio dashboard `/app/studio` with verified real metrics, deterministic top-post engagement ranking, post performance analytics; decoupled event-driven in-app notifications `/app/notifications`, live unread counter badge, read state transitions, self-notification suppression, debounced domain events; all 108 pre-existing tests remained passing; 23 new Phase 6 tests were added; total suite = 131/131).
+- **Phase 7 (Current Milestone — RELEASE CANDIDATE / VIVA READY)**: **Midterm Stabilization & Viva Readiness** (Zero feature creep; comprehensive security, RBAC & IDOR audit; idempotent realistic demo ecosystem with 3 creators & 2 community members; full academic viva prep guide; 0 build errors; all 131 pre-existing tests remained passing; 27 new Phase 7 security & IDOR regression tests were added; **total suite = 158/158**).
 - **Phase 8-13**: Creative Projects, Multidisciplinary Teams & Community Backing.
 
 ---
