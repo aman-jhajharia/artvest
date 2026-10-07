@@ -5,7 +5,7 @@ import { prisma } from './config/database.js';
 
 const app = createApp();
 
-const server = app.listen(config.port, () => {
+const server = app.listen(config.port, '0.0.0.0', () => {
   logger.info(`===============================================`);
   logger.info(` ArtVest REST API Server running on port ${config.port}`);
   logger.info(` Environment: ${config.env}`);
