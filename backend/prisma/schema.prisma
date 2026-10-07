@@ -178,6 +178,9 @@ model CreatorProfile {
   @@index([availability])
   @@index([primaryCategoryId])
   @@index([isPublic])
+  @@index([isPublic, primaryCategoryId])
+  @@index([isPublic, profileCompletionScore])
+  @@index([isPublic, createdAt])
 }
 
 // ==========================================
@@ -273,6 +276,8 @@ model Post {
   @@index([status])
   @@index([createdAt])
   @@index([publishedAt])
+  @@index([status, categoryId])
+  @@index([status, publishedAt])
 }
 
 model PostMedia {
