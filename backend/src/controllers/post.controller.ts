@@ -199,7 +199,7 @@ export class PostController {
     try {
       const creatorId = String(req.params.creatorId);
       const validatedQuery = CreatorPostsQuerySchema.parse(req.query);
-      const result = await PostService.getPublicCreatorPosts(creatorId, validatedQuery);
+      const result = await PostService.getPublicCreatorPosts(creatorId, validatedQuery, req.user?.id);
 
       res.status(200).json({
         success: true,
@@ -218,7 +218,7 @@ export class PostController {
   public static async getFeed(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const validatedQuery = FeedQuerySchema.parse(req.query);
-      const result = await PostService.getShowcaseFeed(validatedQuery);
+      const result = await PostService.getShowcaseFeed(validatedQuery, req.user?.id);
 
       res.status(200).json({
         success: true,

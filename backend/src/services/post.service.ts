@@ -131,6 +131,26 @@ export class PostService {
   }
 
   /**
+   * Transforms post with interaction metrics and current viewer states.
+   */
+  public static formatPostWithInteractions(post: any, currentUserId?: string) {
+    const { likes, saves, _count, author, ...rest } = post;
+    const authorFollowers = author?.followers;
+    const { followers, ...cleanAuthor } = author || {};
+
+    return {
+      ...rest,
+      author: author ? cleanAuthor : undefined,
+      likeCount: _count?.likes ?? 0,
+      commentCount: _count?.comments ?? 0,
+      saveCount: _count?.saves ?? 0,
+      likedByMe: Boolean(currentUserId && Array.isArray(likes) && likes.length > 0),
+      savedByMe: Boolean(currentUserId && Array.isArray(saves) && saves.length > 0),
+      followingCreator: Boolean(currentUserId && Array.isArray(authorFollowers) && authorFollowers.length > 0),
+    };
+  }
+
+  /**
    * Retrieves single post by ID. Enforces draft privacy (only author can view drafts).
    */
   public static async getPostById(postId: string, requesterUserId?: string) {
@@ -143,6 +163,12 @@ export class PostService {
             name: true,
             avatarUrl: true,
             role: true,
+            followers: requesterUserId
+              ? {
+                  where: { followerId: requesterUserId },
+                  select: { id: true },
+                }
+              : false,
           },
         },
         creatorProfile: {
@@ -159,6 +185,25 @@ export class PostService {
         media: {
           orderBy: { orderIndex: 'asc' },
         },
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+            saves: true,
+          },
+        },
+        likes: requesterUserId
+          ? {
+              where: { userId: requesterUserId },
+              select: { id: true },
+            }
+          : false,
+        saves: requesterUserId
+          ? {
+              where: { userId: requesterUserId },
+              select: { id: true },
+            }
+          : false,
       },
     });
 
@@ -181,7 +226,7 @@ export class PostService {
         .catch(() => {});
     }
 
-    return post;
+    return this.formatPostWithInteractions(post, requesterUserId);
   }
 
   /**
@@ -460,6 +505,21 @@ export class PostService {
           media: {
             orderBy: { orderIndex: 'asc' },
           },
+          _count: {
+            select: {
+              likes: true,
+              comments: true,
+              saves: true,
+            },
+          },
+          likes: {
+            where: { userId },
+            select: { id: true },
+          },
+          saves: {
+            where: { userId },
+            select: { id: true },
+          },
         },
         orderBy: [{ isFeatured: 'desc' }, { createdAt: 'desc' }],
         skip,
@@ -469,7 +529,7 @@ export class PostService {
     ]);
 
     return {
-      posts,
+      posts: posts.map((p) => this.formatPostWithInteractions(p, userId)),
       pagination: {
         page: query.page,
         limit: query.limit,
@@ -485,7 +545,8 @@ export class PostService {
    */
   public static async getPublicCreatorPosts(
     identifier: string,
-    query: { page?: number; limit?: number } = {}
+    query: { page?: number; limit?: number } = {},
+    requesterUserId?: string
   ) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(50, Math.max(1, query.limit || 12));
@@ -515,11 +576,44 @@ export class PostService {
       prisma.post.findMany({
         where: whereClause,
         include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              avatarUrl: true,
+              role: true,
+              followers: requesterUserId
+                ? {
+                    where: { followerId: requesterUserId },
+                    select: { id: true },
+                  }
+                : false,
+            },
+          },
           category: true,
           skills: true,
           media: {
             orderBy: { orderIndex: 'asc' },
           },
+          _count: {
+            select: {
+              likes: true,
+              comments: true,
+              saves: true,
+            },
+          },
+          likes: requesterUserId
+            ? {
+                where: { userId: requesterUserId },
+                select: { id: true },
+              }
+            : false,
+          saves: requesterUserId
+            ? {
+                where: { userId: requesterUserId },
+                select: { id: true },
+              }
+            : false,
         },
         orderBy: [{ isFeatured: 'desc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }],
         skip,
@@ -529,7 +623,7 @@ export class PostService {
     ]);
 
     return {
-      posts,
+      posts: posts.map((p) => this.formatPostWithInteractions(p, requesterUserId)),
       pagination: {
         page,
         limit,
@@ -543,7 +637,7 @@ export class PostService {
   /**
    * Retrieves public chronological showcase feed (strictly PUBLISHED posts only).
    */
-  public static async getShowcaseFeed(query: FeedQueryInput) {
+  public static async getShowcaseFeed(query: FeedQueryInput, currentUserId?: string) {
     const whereClause: Prisma.PostWhereInput = {
       status: PostStatus.PUBLISHED,
     };
@@ -574,6 +668,12 @@ export class PostService {
               name: true,
               avatarUrl: true,
               role: true,
+              followers: currentUserId
+                ? {
+                    where: { followerId: currentUserId },
+                    select: { id: true },
+                  }
+                : false,
             },
           },
           creatorProfile: {
@@ -591,6 +691,25 @@ export class PostService {
           media: {
             orderBy: { orderIndex: 'asc' },
           },
+          _count: {
+            select: {
+              likes: true,
+              comments: true,
+              saves: true,
+            },
+          },
+          likes: currentUserId
+            ? {
+                where: { userId: currentUserId },
+                select: { id: true },
+              }
+            : false,
+          saves: currentUserId
+            ? {
+                where: { userId: currentUserId },
+                select: { id: true },
+              }
+            : false,
         },
         orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
         skip,
@@ -600,7 +719,7 @@ export class PostService {
     ]);
 
     return {
-      posts,
+      posts: posts.map((p) => this.formatPostWithInteractions(p, currentUserId)),
       pagination: {
         page: query.page,
         limit: query.limit,
