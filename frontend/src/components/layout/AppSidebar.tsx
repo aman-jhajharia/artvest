@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { NotificationApiService } from '@/features/notifications/services/notification.service';
 import {
   Home,
   Compass,
@@ -22,6 +23,29 @@ export const AppSidebar: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const [unreadNotifications, setUnreadNotifications] = useState<number>(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUnread = async () => {
+      if (!user) return;
+      try {
+        const res = await NotificationApiService.getUnreadCount();
+        if (res.success && res.data && isMounted) {
+          setUnreadNotifications(res.data.unreadCount);
+        }
+      } catch {
+        // Silently catch in navigation sidebar
+      }
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [user, pathname]);
 
   const handleLogout = async () => {
     await logout();
@@ -71,7 +95,12 @@ export const AppSidebar: React.FC = () => {
                 }`}
               >
                 <Icon className={`w-4 h-4 ${isActive ? 'text-amber-400' : 'text-gray-400'}`} />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.href === '/app/notifications' && unreadNotifications > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-black leading-none">
+                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                  </span>
+                )}
               </Link>
             );
           })}
