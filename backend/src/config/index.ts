@@ -28,13 +28,23 @@ export const config = {
   },
 } as const;
 
-export function getSessionCookieOptions(): CookieOptions {
-  const isProduction = config.env === 'production';
+export function getSessionCookieOptions(envOverride?: string): CookieOptions {
+  const isProduction = (envOverride ?? config.env) === 'production';
   return {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? 'strict' : 'lax',
+    sameSite: isProduction ? 'none' : 'lax',
     path: '/',
     maxAge: config.session.maxAgeDays * 24 * 60 * 60 * 1000,
+  };
+}
+
+export function getClearSessionCookieOptions(envOverride?: string): CookieOptions {
+  const isProduction = (envOverride ?? config.env) === 'production';
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    path: '/',
   };
 }

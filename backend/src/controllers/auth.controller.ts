@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from '../services/auth.service.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
-import { getSessionCookieOptions, config } from '../config/index.js';
+import { getSessionCookieOptions, getClearSessionCookieOptions, config } from '../config/index.js';
 
 export class AuthController {
   /**
@@ -43,12 +43,7 @@ export class AuthController {
    */
   public static async logout(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      res.clearCookie(config.session.cookieName, {
-        httpOnly: true,
-        secure: config.env === 'production',
-        sameSite: config.env === 'production' ? 'strict' : 'lax',
-        path: '/',
-      });
+      res.clearCookie(config.session.cookieName, getClearSessionCookieOptions());
 
       res.status(200).json(sendSuccess(null, 'Successfully logged out'));
     } catch (error) {

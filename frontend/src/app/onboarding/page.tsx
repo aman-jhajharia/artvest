@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { OnboardingService, SkillItem } from '@/features/onboarding/services/onboarding.service';
+import { getCategoryMetadataConfig } from '@/features/onboarding/utils/categoryMetadataConfig';
 import { Category } from '@/types';
 import {
   Sparkles,
@@ -53,11 +54,38 @@ export default function OnboardingPage() {
   const [primarySkillId, setPrimarySkillId] = useState('');
   const [additionalSkillIds, setAdditionalSkillIds] = useState<string[]>([]);
 
-  // Role Metadata Form State
-  const [genreInput, setGenreInput] = useState('Classical, Semi-Classical, Fusion');
-  const [languageInput, setLanguageInput] = useState('Hindi, Marwari, English');
+  // Universal Creative Metadata Form State
+  const [specializationsInput, setSpecializationsInput] = useState('Classical, Semi-Classical, Fusion');
+  const [practiceContextInput, setPracticeContextInput] = useState('Studio Recording, Live Stage');
+  const [toolsInput, setToolsInput] = useState('Acoustic Guitar, Logic Pro, Shure SM7B');
+  const [languagesInput, setLanguagesInput] = useState('Hindi, English');
+
+  // Category-Specific Dynamic Inputs
   const [vocalType, setVocalType] = useState('Mezzo-Soprano');
-  const [equipmentInput, setEquipmentInput] = useState('ARRI Alexa Mini, Prime Lenses');
+  const [techniquesInput, setTechniquesInput] = useState('');
+  const [mediumsInput, setMediumsInput] = useState('');
+  const [choreographyRolesInput, setChoreographyRolesInput] = useState('');
+  const [certificationsInput, setCertificationsInput] = useState('');
+
+  // Selected Category and dynamic config
+  const selectedCategory = categories.find((c) => c.id === primaryCategoryId);
+  const categoryConfig = getCategoryMetadataConfig(selectedCategory?.slug);
+
+  // Helper for chip toggling
+  const toggleSuggestion = (currentVal: string, suggestion: string, setter: (val: string) => void) => {
+    const items = currentVal.split(',').map((s) => s.trim()).filter(Boolean);
+    const exists = items.some((item) => item.toLowerCase() === suggestion.toLowerCase());
+    if (exists) {
+      setter(items.filter((item) => item.toLowerCase() !== suggestion.toLowerCase()).join(', '));
+    } else {
+      setter(items.length > 0 ? `${items.join(', ')}, ${suggestion}` : suggestion);
+    }
+  };
+
+  const isSuggestionActive = (currentVal: string, suggestion: string): boolean => {
+    const items = currentVal.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+    return items.includes(suggestion.toLowerCase());
+  };
 
   // Submission State
   const [submitting, setSubmitting] = useState(false);
@@ -105,6 +133,37 @@ export default function OnboardingPage() {
     }
     loadSkills();
   }, [primaryCategoryId]);
+
+  // When primary category changes, preset dynamic metadata suggestions
+  useEffect(() => {
+    if (!primaryCategoryId || !categories.length) return;
+    const cat = categories.find((c) => c.id === primaryCategoryId);
+    if (!cat) return;
+    const config = getCategoryMetadataConfig(cat.slug);
+
+    if (config.specializationsSuggestions.length > 0) {
+      setSpecializationsInput(config.specializationsSuggestions.slice(0, 3).join(', '));
+    }
+    if (config.practiceContextSuggestions.length > 0) {
+      setPracticeContextInput(config.practiceContextSuggestions.slice(0, 2).join(', '));
+    }
+    if (config.toolsSuggestions.length > 0) {
+      setToolsInput(config.toolsSuggestions.slice(0, 3).join(', '));
+    }
+
+    // Reset category-specific fields cleanly
+    setVocalType(cat.slug === 'music' ? 'Mezzo-Soprano' : '');
+    setTechniquesInput(cat.slug === 'film-acting' ? 'Stanislavski Method' : '');
+    setChoreographyRolesInput(cat.slug === 'dance' ? 'Choreographer' : '');
+    setMediumsInput(
+      cat.slug === 'photography-video'
+        ? '35mm Film, 4K Raw'
+        : cat.slug === 'design-digital-arts'
+        ? 'Octane Render, Vector Graphics'
+        : ''
+    );
+    setCertificationsInput(cat.slug === 'production-support' ? 'Dante Certified Level 2' : '');
+  }, [primaryCategoryId, categories]);
 
   // Handle Interest Toggle (for USER)
   const toggleInterest = (catSlug: string) => {
@@ -156,13 +215,32 @@ export default function OnboardingPage() {
         setSubmitting(false);
       }
     } else {
-      // Parse structured role metadata
+      // Parse universal & category-aware structured role metadata
       const roleAttributes: Record<string, unknown> = {
-        genres: genreInput.split(',').map((s) => s.trim()).filter(Boolean),
-        languages: languageInput.split(',').map((s) => s.trim()).filter(Boolean),
-        vocalType: vocalType.trim() || undefined,
-        equipment: equipmentInput.split(',').map((s) => s.trim()).filter(Boolean),
+        specializations: specializationsInput.split(',').map((s) => s.trim()).filter(Boolean),
+        genres: specializationsInput.split(',').map((s) => s.trim()).filter(Boolean), // dual-mapped for backward compatibility
+        practiceContext: practiceContextInput.split(',').map((s) => s.trim()).filter(Boolean),
+        tools: toolsInput.split(',').map((s) => s.trim()).filter(Boolean),
+        equipment: toolsInput.split(',').map((s) => s.trim()).filter(Boolean), // dual-mapped for backward compatibility
+        languages: languagesInput.split(',').map((s) => s.trim()).filter(Boolean),
       };
+
+      if (vocalType.trim()) {
+        roleAttributes.vocalType = vocalType.trim();
+      }
+      if (techniquesInput.trim()) {
+        roleAttributes.techniques = techniquesInput.split(',').map((s) => s.trim()).filter(Boolean);
+      }
+      if (mediumsInput.trim()) {
+        roleAttributes.mediums = mediumsInput.split(',').map((s) => s.trim()).filter(Boolean);
+      }
+      if (choreographyRolesInput.trim()) {
+        roleAttributes.choreographyRoles = choreographyRolesInput.split(',').map((s) => s.trim()).filter(Boolean);
+      }
+      if (certificationsInput.trim()) {
+        roleAttributes.certifications = certificationsInput.split(',').map((s) => s.trim()).filter(Boolean);
+        roleAttributes.technicalCertifications = certificationsInput.split(',').map((s) => s.trim()).filter(Boolean);
+      }
 
       const res = await OnboardingService.submitCreatorOnboarding({
         stageName: stageName.trim() || undefined,
@@ -602,66 +680,342 @@ export default function OnboardingPage() {
                   />
                 </div>
 
-                {/* Structured Role Metadata Box */}
-                <div className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Role-Specific Craft Metadata Attributes</span>
+                {/* Structured Creative Metadata Box */}
+                <div className="p-5 rounded-2xl bg-black/40 border border-white/10 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Structured Creative Attributes — {selectedCategory?.name || 'Craft Profile'}</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400 font-mono">
+                      Category-Adaptive
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    Defines your creative taxonomy for discoverability, search filters, and collaborator matching.
+                  </p>
+
+                  {/* 1. Specializations & Domains */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[11px] font-semibold text-gray-300">
+                        {categoryConfig.specializationsLabel}
+                      </label>
+                      <span className="text-[10px] text-amber-400/80 font-mono">Core Attribute</span>
+                    </div>
+                    <p className="text-[11px] text-gray-400">{categoryConfig.specializationsHelper}</p>
+                    <input
+                      type="text"
+                      value={specializationsInput}
+                      onChange={(e) => setSpecializationsInput(e.target.value)}
+                      placeholder={categoryConfig.specializationsPlaceholder}
+                      className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                    />
+                    {categoryConfig.specializationsSuggestions.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mr-1">Suggestions:</span>
+                        {categoryConfig.specializationsSuggestions.map((sug) => {
+                          const active = isSuggestionActive(specializationsInput, sug);
+                          return (
+                            <button
+                              key={sug}
+                              type="button"
+                              onClick={() => toggleSuggestion(specializationsInput, sug, setSpecializationsInput)}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                                active
+                                  ? 'bg-amber-400 text-black font-semibold shadow-sm'
+                                  : 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10'
+                              }`}
+                            >
+                              {active ? `✓ ${sug}` : `+ ${sug}`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] text-gray-400 mb-1">
-                        Genres / Specializations (comma separated)
+                  {/* 2. Practice & Presentation Context */}
+                  <div className="space-y-1.5 pt-2 border-t border-white/5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[11px] font-semibold text-gray-300">
+                        {categoryConfig.practiceContextLabel}
                       </label>
-                      <input
-                        type="text"
-                        value={genreInput}
-                        onChange={(e) => setGenreInput(e.target.value)}
-                        className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs"
-                      />
+                      <span className="text-[10px] text-gray-400 font-mono">Environment</span>
                     </div>
-
-                    <div>
-                      <label className="block text-[11px] text-gray-400 mb-1">
-                        Languages / Dialects (comma separated)
-                      </label>
-                      <input
-                        type="text"
-                        value={languageInput}
-                        onChange={(e) => setLanguageInput(e.target.value)}
-                        className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs"
-                      />
-                    </div>
+                    <p className="text-[11px] text-gray-400">{categoryConfig.practiceContextHelper}</p>
+                    <input
+                      type="text"
+                      value={practiceContextInput}
+                      onChange={(e) => setPracticeContextInput(e.target.value)}
+                      placeholder={categoryConfig.practiceContextPlaceholder}
+                      className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                    />
+                    {categoryConfig.practiceContextSuggestions.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mr-1">Suggestions:</span>
+                        {categoryConfig.practiceContextSuggestions.map((sug) => {
+                          const active = isSuggestionActive(practiceContextInput, sug);
+                          return (
+                            <button
+                              key={sug}
+                              type="button"
+                              onClick={() => toggleSuggestion(practiceContextInput, sug, setPracticeContextInput)}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                                active
+                                  ? 'bg-amber-400 text-black font-semibold shadow-sm'
+                                  : 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10'
+                              }`}
+                            >
+                              {active ? `✓ ${sug}` : `+ ${sug}`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] text-gray-400 mb-1">
-                        Vocal Range / Technique
+                  {/* 3. Tools, Systems & Equipment */}
+                  <div className="space-y-1.5 pt-2 border-t border-white/5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[11px] font-semibold text-gray-300">
+                        {categoryConfig.toolsLabel}
                       </label>
-                      <input
-                        type="text"
-                        value={vocalType}
-                        onChange={(e) => setVocalType(e.target.value)}
-                        className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs"
-                        placeholder="e.g. Mezzo-Soprano / 3 Octaves"
-                      />
+                      <span className="text-[10px] text-gray-400 font-mono">Gear & Software</span>
                     </div>
-
-                    <div>
-                      <label className="block text-[11px] text-gray-400 mb-1">
-                        Gear / Systems / Tools (comma separated)
-                      </label>
-                      <input
-                        type="text"
-                        value={equipmentInput}
-                        onChange={(e) => setEquipmentInput(e.target.value)}
-                        className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs"
-                        placeholder="e.g. Hasselblad, Shure SM7B"
-                      />
-                    </div>
+                    <p className="text-[11px] text-gray-400">{categoryConfig.toolsHelper}</p>
+                    <input
+                      type="text"
+                      value={toolsInput}
+                      onChange={(e) => setToolsInput(e.target.value)}
+                      placeholder={categoryConfig.toolsPlaceholder}
+                      className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                    />
+                    {categoryConfig.toolsSuggestions.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mr-1">Suggestions:</span>
+                        {categoryConfig.toolsSuggestions.map((sug) => {
+                          const active = isSuggestionActive(toolsInput, sug);
+                          return (
+                            <button
+                              key={sug}
+                              type="button"
+                              onClick={() => toggleSuggestion(toolsInput, sug, setToolsInput)}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                                active
+                                  ? 'bg-amber-400 text-black font-semibold shadow-sm'
+                                  : 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10'
+                              }`}
+                            >
+                              {active ? `✓ ${sug}` : `+ ${sug}`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
+
+                  {/* 4. Languages & Dialects */}
+                  <div className="space-y-1.5 pt-2 border-t border-white/5">
+                    <label className="block text-[11px] font-semibold text-gray-300">
+                      {categoryConfig.languagesLabel}
+                    </label>
+                    <p className="text-[11px] text-gray-400">{categoryConfig.languagesHelper}</p>
+                    <input
+                      type="text"
+                      value={languagesInput}
+                      onChange={(e) => setLanguagesInput(e.target.value)}
+                      placeholder={categoryConfig.languagesPlaceholder}
+                      className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  {/* 5. Category-Specific Field (Conditionally Rendered) */}
+                  {categoryConfig.categorySpecificField && (
+                    <div className="space-y-1.5 pt-2 border-t border-white/10">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11px] font-semibold text-amber-300">
+                          {categoryConfig.categorySpecificField.label}
+                        </label>
+                        <span className="text-[10px] text-amber-400/80 font-mono uppercase tracking-wider">
+                          Specific to {selectedCategory?.name}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-400">
+                        {categoryConfig.categorySpecificField.helper}
+                      </p>
+
+                      {categoryConfig.categorySpecificField.key === 'vocalType' && (
+                        <>
+                          <input
+                            type="text"
+                            value={vocalType}
+                            onChange={(e) => setVocalType(e.target.value)}
+                            placeholder={categoryConfig.categorySpecificField.placeholder}
+                            className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                          />
+                          {categoryConfig.categorySpecificField.suggestions && (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                              <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mr-1">Suggestions:</span>
+                              {categoryConfig.categorySpecificField.suggestions.map((sug) => {
+                                const active = vocalType.toLowerCase().includes(sug.toLowerCase());
+                                return (
+                                  <button
+                                    key={sug}
+                                    type="button"
+                                    onClick={() => setVocalType(active ? '' : sug)}
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                                      active
+                                        ? 'bg-amber-400 text-black font-semibold shadow-sm'
+                                        : 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10'
+                                    }`}
+                                  >
+                                    {active ? `✓ ${sug}` : `+ ${sug}`}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {categoryConfig.categorySpecificField.key === 'techniques' && (
+                        <>
+                          <input
+                            type="text"
+                            value={techniquesInput}
+                            onChange={(e) => setTechniquesInput(e.target.value)}
+                            placeholder={categoryConfig.categorySpecificField.placeholder}
+                            className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                          />
+                          {categoryConfig.categorySpecificField.suggestions && (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                              <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mr-1">Suggestions:</span>
+                              {categoryConfig.categorySpecificField.suggestions.map((sug) => {
+                                const active = isSuggestionActive(techniquesInput, sug);
+                                return (
+                                  <button
+                                    key={sug}
+                                    type="button"
+                                    onClick={() => toggleSuggestion(techniquesInput, sug, setTechniquesInput)}
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                                      active
+                                        ? 'bg-amber-400 text-black font-semibold shadow-sm'
+                                        : 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10'
+                                    }`}
+                                  >
+                                    {active ? `✓ ${sug}` : `+ ${sug}`}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {categoryConfig.categorySpecificField.key === 'choreographyRoles' && (
+                        <>
+                          <input
+                            type="text"
+                            value={choreographyRolesInput}
+                            onChange={(e) => setChoreographyRolesInput(e.target.value)}
+                            placeholder={categoryConfig.categorySpecificField.placeholder}
+                            className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                          />
+                          {categoryConfig.categorySpecificField.suggestions && (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                              <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mr-1">Suggestions:</span>
+                              {categoryConfig.categorySpecificField.suggestions.map((sug) => {
+                                const active = isSuggestionActive(choreographyRolesInput, sug);
+                                return (
+                                  <button
+                                    key={sug}
+                                    type="button"
+                                    onClick={() => toggleSuggestion(choreographyRolesInput, sug, setChoreographyRolesInput)}
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                                      active
+                                        ? 'bg-amber-400 text-black font-semibold shadow-sm'
+                                        : 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10'
+                                    }`}
+                                  >
+                                    {active ? `✓ ${sug}` : `+ ${sug}`}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {categoryConfig.categorySpecificField.key === 'mediums' && (
+                        <>
+                          <input
+                            type="text"
+                            value={mediumsInput}
+                            onChange={(e) => setMediumsInput(e.target.value)}
+                            placeholder={categoryConfig.categorySpecificField.placeholder}
+                            className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                          />
+                          {categoryConfig.categorySpecificField.suggestions && (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                              <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mr-1">Suggestions:</span>
+                              {categoryConfig.categorySpecificField.suggestions.map((sug) => {
+                                const active = isSuggestionActive(mediumsInput, sug);
+                                return (
+                                  <button
+                                    key={sug}
+                                    type="button"
+                                    onClick={() => toggleSuggestion(mediumsInput, sug, setMediumsInput)}
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                                      active
+                                        ? 'bg-amber-400 text-black font-semibold shadow-sm'
+                                        : 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10'
+                                    }`}
+                                  >
+                                    {active ? `✓ ${sug}` : `+ ${sug}`}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {categoryConfig.categorySpecificField.key === 'certifications' && (
+                        <>
+                          <input
+                            type="text"
+                            value={certificationsInput}
+                            onChange={(e) => setCertificationsInput(e.target.value)}
+                            placeholder={categoryConfig.categorySpecificField.placeholder}
+                            className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                          />
+                          {categoryConfig.categorySpecificField.suggestions && (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                              <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mr-1">Suggestions:</span>
+                              {categoryConfig.categorySpecificField.suggestions.map((sug) => {
+                                const active = isSuggestionActive(certificationsInput, sug);
+                                return (
+                                  <button
+                                    key={sug}
+                                    type="button"
+                                    onClick={() => toggleSuggestion(certificationsInput, sug, setCertificationsInput)}
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                                      active
+                                        ? 'bg-amber-400 text-black font-semibold shadow-sm'
+                                        : 'bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10'
+                                    }`}
+                                  >
+                                    {active ? `✓ ${sug}` : `+ ${sug}`}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -735,6 +1089,22 @@ export default function OnboardingPage() {
 
               {roleIntent === 'CREATOR' && (
                 <>
+                  <div className="flex justify-between py-1 border-b border-white/5">
+                    <span className="text-gray-400">Primary Discipline</span>
+                    <span className="text-white font-medium">{selectedCategory?.name}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-white/5">
+                    <span className="text-gray-400">Primary Craft Role</span>
+                    <span className="text-white font-medium">{categorySkills.find((s) => s.id === primarySkillId)?.name || 'Craft Role'}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-white/5">
+                    <span className="text-gray-400">Specializations</span>
+                    <span className="text-amber-400 font-medium text-right max-w-xs truncate">{specializationsInput || 'Not specified'}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-white/5">
+                    <span className="text-gray-400">Primary Tools</span>
+                    <span className="text-gray-300 font-medium text-right max-w-xs truncate">{toolsInput || 'Not specified'}</span>
+                  </div>
                   <div className="flex justify-between py-1 border-b border-white/5">
                     <span className="text-gray-400">Headline</span>
                     <span className="text-white">{headline || 'Creative Professional'}</span>

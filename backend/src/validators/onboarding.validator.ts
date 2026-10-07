@@ -16,51 +16,55 @@ export const UserOnboardingSchema = z.object({
 
 export type UserOnboardingInput = z.infer<typeof UserOnboardingSchema>;
 
-// Category-aware Role Metadata Schemas
-export const SingerMetadataSchema = z.object({
-  genres: z.array(z.string().trim()).min(1, 'Select at least one musical genre'),
-  languages: z.array(z.string().trim()).min(1, 'Select at least one vocal language'),
-  vocalType: z.string().trim().min(2, 'Vocal type is required').optional(),
-});
+// Universal & Category-Aware Creative Metadata Schema
+export const CreativeRoleAttributesSchema = z
+  .object({
+    // 1. Universal Creative Attributes
+    specializations: z.array(z.string().trim()).max(20).optional().default([]),
+    genres: z.array(z.string().trim()).max(20).optional().default([]),
+    languages: z.array(z.string().trim()).max(20).optional().default([]),
+    tools: z.array(z.string().trim()).max(30).optional().default([]),
+    equipment: z.array(z.string().trim()).max(30).optional().default([]),
+    practiceContext: z.array(z.string().trim()).max(20).optional().default([]),
+    productionContext: z.array(z.string().trim()).max(20).optional().default([]),
+    techniques: z.array(z.string().trim()).max(20).optional().default([]),
+    mediums: z.array(z.string().trim()).max(20).optional().default([]),
 
-export const PhotographerMetadataSchema = z.object({
-  photographyStyles: z.array(z.string().trim()).min(1, 'Select at least one photography style'),
-  equipment: z.array(z.string().trim()).default([]),
-  specializations: z.array(z.string().trim()).default([]),
-});
+    // 2. Discipline-Specific Attributes (Optional, category-aware)
+    vocalType: z.string().trim().max(100).optional().nullable(),
+    vocalRange: z.string().trim().max(100).optional().nullable(),
+    classicalTradition: z.string().trim().max(100).optional().nullable(),
+    instruments: z.array(z.string().trim()).max(20).optional().default([]),
+    daws: z.array(z.string().trim()).max(20).optional().default([]),
 
-export const FilmActorMetadataSchema = z.object({
-  languages: z.array(z.string().trim()).min(1, 'Select at least one language'),
-  actingStyles: z.array(z.string().trim()).default([]),
-  theatreExperience: z.boolean().default(false),
-  cameraSystems: z.array(z.string().trim()).default([]),
-});
+    cameraGear: z.array(z.string().trim()).max(20).optional().default([]),
+    cameraSystems: z.array(z.string().trim()).max(20).optional().default([]),
+    editingSuite: z.string().trim().max(100).optional().nullable(),
+    editingTools: z.array(z.string().trim()).max(20).optional().default([]),
+    actingStyles: z.array(z.string().trim()).max(20).optional().default([]),
+    projectTypes: z.array(z.string().trim()).max(20).optional().default([]),
 
-export const DancerMetadataSchema = z.object({
-  danceForms: z.array(z.string().trim()).min(1, 'Select at least one dance form'),
-  performanceType: z.string().trim().optional(),
-});
+    danceForms: z.array(z.string().trim()).max(20).optional().default([]),
+    performanceContext: z.array(z.string().trim()).max(20).optional().default([]),
+    choreographyRoles: z.array(z.string().trim()).max(20).optional().default([]),
 
-export const DigitalArtistMetadataSchema = z.object({
-  tools: z.array(z.string().trim()).default([]),
-  engines: z.array(z.string().trim()).default([]),
-  focus: z.string().trim().optional(),
-});
+    photographyStyles: z.array(z.string().trim()).max(20).optional().default([]),
+    photographyTypes: z.array(z.string().trim()).max(20).optional().default([]),
+    videoStyles: z.array(z.string().trim()).max(20).optional().default([]),
+    cameraEquipment: z.array(z.string().trim()).max(20).optional().default([]),
 
-export const ProductionCrewMetadataSchema = z.object({
-  gear: z.array(z.string().trim()).default([]),
-  fieldExperience: z.string().trim().optional(),
-});
+    designSpecialties: z.array(z.string().trim()).max(20).optional().default([]),
+    software: z.array(z.string().trim()).max(20).optional().default([]),
+    animationTypes: z.array(z.string().trim()).max(20).optional().default([]),
 
-export const RoleAttributesSchema = z.union([
-  SingerMetadataSchema,
-  PhotographerMetadataSchema,
-  FilmActorMetadataSchema,
-  DancerMetadataSchema,
-  DigitalArtistMetadataSchema,
-  ProductionCrewMetadataSchema,
-  z.record(z.unknown()), // Extensible fallback for emerging categories
-]);
+    productionSpecialties: z.array(z.string().trim()).max(20).optional().default([]),
+    gear: z.array(z.string().trim()).max(20).optional().default([]),
+    technicalCertifications: z.array(z.string().trim()).max(20).optional().default([]),
+    certifications: z.array(z.string().trim()).max(20).optional().default([]),
+  })
+  .passthrough();
+
+export const RoleAttributesSchema = CreativeRoleAttributesSchema;
 
 export const CreatorOnboardingSchema = z.object({
   stageName: z.string().trim().min(2, 'Stage or creative name must be at least 2 characters').max(60).optional().nullable(),
@@ -79,7 +83,7 @@ export const CreatorOnboardingSchema = z.object({
   primaryCategoryId: z.string().trim().min(1, 'Primary category is required'),
   primarySkillId: z.string().trim().min(1, 'Primary skill is required'),
   additionalSkillIds: z.array(z.string().trim()).max(10, 'Maximum 10 additional skills allowed').default([]),
-  roleAttributes: z.record(z.unknown()).default({}),
+  roleAttributes: CreativeRoleAttributesSchema.default({}),
   collaborationPreferences: z
     .object({
       lookingFor: z.array(z.string().trim()).default([]),

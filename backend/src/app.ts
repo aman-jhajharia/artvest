@@ -12,6 +12,9 @@ import { errorMiddleware } from './middleware/error.middleware.js';
 export function createApp(): Express {
   const app = express();
 
+  // Trust first proxy (Render, Vercel, reverse proxies) for secure cookie recognition
+  app.set('trust proxy', 1);
+
   // Security headers with media resource policy allowing cross-origin media playback
   app.use(
     helmet({
@@ -25,10 +28,26 @@ export function createApp(): Express {
   // Cookie parsing for HttpOnly session cookies
   app.use(cookieParser());
 
+  // Allowed CORS origins (sanitized of trailing slashes, strictly validated)
+  const configuredOrigins = config.frontendUrl
+    ? config.frontendUrl
+        .split(',')
+        .map((u) => u.trim().replace(/\/+$/, ''))
+        .filter(Boolean)
+    : [];
+
+  const allowedOrigins = Array.from(
+    new Set([
+      ...configuredOrigins,
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+    ])
+  );
+
   // CORS configuration with credentials support
   app.use(
     cors({
-      origin: [config.frontendUrl, 'http://localhost:3000', 'http://127.0.0.1:3000'],
+      origin: allowedOrigins,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

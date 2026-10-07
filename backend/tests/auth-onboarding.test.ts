@@ -4,6 +4,7 @@ import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/config/database.js';
 import { AuthService } from '../src/services/auth.service.js';
+import { getSessionCookieOptions, getClearSessionCookieOptions } from '../src/config/index.js';
 import { UserRole } from '@prisma/client';
 
 const app = createApp();
@@ -275,5 +276,231 @@ describe('ArtVest Phase 1 - Authentication & Onboarding Test Suite', () => {
     // Verify in database that user role is strictly USER
     const dbUser = await prisma.user.findUnique({ where: { email: hackerEmail } });
     assert.equal(dbUser?.role, UserRole.USER, 'User role MUST remain USER');
+  });
+
+  // 6. Cookie Policy Configuration Tests
+  describe('Cookie Policy Security Invariants', () => {
+    it('Production session cookie uses sameSite=none and secure=true for cross-site Render <-> Vercel auth', () => {
+      const prodOpts = getSessionCookieOptions('production');
+      assert.equal(prodOpts.httpOnly, true, 'Production cookie MUST be HttpOnly');
+      assert.equal(prodOpts.secure, true, 'Production cookie MUST be Secure (required for sameSite=none)');
+      assert.equal(prodOpts.sameSite, 'none', 'Production cookie MUST be sameSite=none for cross-origin SPA');
+      assert.equal(prodOpts.path, '/', 'Production cookie MUST be scoped to root path /');
+      assert.equal(prodOpts.maxAge, 7 * 24 * 60 * 60 * 1000);
+    });
+
+    it('Production clear session cookie matches sameSite=none and secure=true to ensure browser clears it', () => {
+      const prodClearOpts = getClearSessionCookieOptions('production');
+      assert.equal(prodClearOpts.httpOnly, true);
+      assert.equal(prodClearOpts.secure, true);
+      assert.equal(prodClearOpts.sameSite, 'none');
+      assert.equal(prodClearOpts.path, '/');
+    });
+
+    it('Development session cookie uses sameSite=lax and secure=false for localhost testing without HTTPS', () => {
+      const devOpts = getSessionCookieOptions('development');
+      assert.equal(devOpts.httpOnly, true);
+      assert.equal(devOpts.secure, false, 'Dev cookie MUST NOT require HTTPS');
+      assert.equal(devOpts.sameSite, 'lax');
+      assert.equal(devOpts.path, '/');
+    });
+
+    it('Development clear session cookie matches sameSite=lax and secure=false', () => {
+      const devClearOpts = getClearSessionCookieOptions('development');
+      assert.equal(devClearOpts.httpOnly, true);
+      assert.equal(devClearOpts.secure, false);
+      assert.equal(devClearOpts.sameSite, 'lax');
+      assert.equal(devClearOpts.path, '/');
+    });
+  });
+
+  // 7. Creator Onboarding Security & Validation Tests
+  describe('Creator Onboarding Security & Validation', () => {
+    it('Rejects unauthenticated POST /api/onboarding/creator with 401 UNAUTHORIZED', async () => {
+      const res = await request(app)
+        .post('/api/onboarding/creator')
+        .send({
+          headline: 'Cinematographer & Lighting Director',
+          bio: 'Visual artist and director of photography working with anamorphic lenses.',
+          location: 'Mumbai, Maharashtra',
+          experienceLevel: 'ADVANCED',
+          primaryCategoryId,
+          primarySkillId,
+        });
+
+      assert.equal(res.status, 401);
+      assert.equal(res.body.success, false);
+      assert.equal(res.body.error.code, 'UNAUTHORIZED');
+    });
+
+    it('Rejects creator onboarding with invalid bio (< 10 chars) with 400 VALIDATION_ERROR', async () => {
+      const testEmail = `test.auth.val.${Date.now()}@example.com`;
+      const authRes = await request(app)
+        .post('/api/auth/google')
+        .send({
+          credential: `mock_test_credential:${JSON.stringify({
+            googleId: `google_val_${Date.now()}`,
+            email: testEmail,
+            name: 'Val User',
+          })}`,
+        });
+
+      const cookie = authRes.headers['set-cookie'][0].split(';')[0];
+
+      const res = await request(app)
+        .post('/api/onboarding/creator')
+        .set('Cookie', [cookie])
+        .send({
+          headline: 'Cinematographer',
+          bio: 'Too short', // < 10 characters
+          location: 'Mumbai',
+          experienceLevel: 'INTERMEDIATE',
+          primaryCategoryId,
+          primarySkillId,
+        });
+
+      assert.equal(res.status, 400);
+      assert.equal(res.body.success, false);
+      assert.equal(res.body.error.code, 'VALIDATION_ERROR');
+    });
+  });
+
+  // 8. Universal & Category-Aware Creative Metadata Tests
+  describe('Category-Aware Creative Metadata Across Disciplines', () => {
+    it('Completes creator onboarding for Film & Acting with universal cinematic metadata', async () => {
+      // Find film & acting category and cinematographer/filmmaker skill
+      const filmCategory = await prisma.category.findUnique({ where: { slug: 'film-acting' } });
+      assert.ok(filmCategory, 'Film category must exist');
+
+      const skills = await prisma.skill.findMany({ where: { categoryId: filmCategory.id } });
+      assert.ok(skills.length > 0, 'Film skills must exist');
+      const filmSkillId = skills[0].id;
+
+      const filmmakerEmail = `test.auth.film.${Date.now()}@example.com`;
+      const authRes = await request(app)
+        .post('/api/auth/google')
+        .send({
+          credential: `mock_test_credential:${JSON.stringify({
+            googleId: `google_film_${Date.now()}`,
+            email: filmmakerEmail,
+            name: 'Vikram Sethi',
+          })}`,
+        });
+
+      const cookie = authRes.headers['set-cookie'][0].split(';')[0];
+
+      const res = await request(app)
+        .post('/api/onboarding/creator')
+        .set('Cookie', [cookie])
+        .send({
+          stageName: 'Vikram Sethi DOP',
+          headline: 'Cinematographer & Narrative Director of Photography',
+          bio: 'Specializing in independent cinema, moody anamorphic lighting, and high dynamic range color grading.',
+          location: 'Mumbai, Maharashtra',
+          city: 'Mumbai',
+          experienceLevel: 'ADVANCED',
+          yearsExperience: 8,
+          availability: 'OPEN_TO_WORK',
+          primaryCategoryId: filmCategory.id,
+          primarySkillId: filmSkillId,
+          roleAttributes: {
+            specializations: ['Narrative Fiction', 'Indie Feature', 'Documentary'],
+            genres: ['Narrative Fiction', 'Indie Feature', 'Documentary'],
+            practiceContext: ['Independent Film Set', 'Festival Circuit'],
+            tools: ['ARRI Alexa Mini', 'Cooke Anamorphic', 'DaVinci Resolve'],
+            equipment: ['ARRI Alexa Mini', 'Cooke Anamorphic', 'DaVinci Resolve'],
+            techniques: ['Anamorphic Framing', 'Low-Key Lighting'],
+            languages: ['Hindi', 'English'],
+          },
+        });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.data.user.role, 'CREATOR');
+
+      const cp = res.body.data.creatorProfile;
+      assert.ok(cp);
+      assert.equal(cp.stageName, 'Vikram Sethi DOP');
+
+      const roleAttrs = cp.roleAttributes as Record<string, unknown>;
+      assert.ok(Array.isArray(roleAttrs.specializations));
+      assert.deepEqual(roleAttrs.specializations, ['Narrative Fiction', 'Indie Feature', 'Documentary']);
+      assert.deepEqual(roleAttrs.tools, ['ARRI Alexa Mini', 'Cooke Anamorphic', 'DaVinci Resolve']);
+      assert.deepEqual(roleAttrs.practiceContext, ['Independent Film Set', 'Festival Circuit']);
+      assert.deepEqual(roleAttrs.techniques, ['Anamorphic Framing', 'Low-Key Lighting']);
+      // Notice: No vocalType forced onto a cinematographer!
+      assert.equal(roleAttrs.vocalType, undefined);
+    });
+
+    it('Completes creator onboarding for Dance with movement & choreography metadata', async () => {
+      const danceCategory = await prisma.category.findUnique({ where: { slug: 'dance' } });
+      assert.ok(danceCategory, 'Dance category must exist');
+
+      const danceSkills = await prisma.skill.findMany({ where: { categoryId: danceCategory.id } });
+      assert.ok(danceSkills.length > 0, 'Dance skills must exist');
+      const danceSkillId = danceSkills[0].id;
+
+      const dancerEmail = `test.auth.dance.${Date.now()}@example.com`;
+      const authRes = await request(app)
+        .post('/api/auth/google')
+        .send({
+          credential: `mock_test_credential:${JSON.stringify({
+            googleId: `google_dance_${Date.now()}`,
+            email: dancerEmail,
+            name: 'Ananya Roy',
+          })}`,
+        });
+
+      const cookie = authRes.headers['set-cookie'][0].split(';')[0];
+
+      const res = await request(app)
+        .post('/api/onboarding/creator')
+        .set('Cookie', [cookie])
+        .send({
+          stageName: 'Ananya Movement',
+          headline: 'Contemporary Dancer & Movement Director',
+          bio: 'Exploring traditional somatic lineages merged with contemporary contact improvisation.',
+          location: 'Bangalore, Karnataka',
+          city: 'Bangalore',
+          experienceLevel: 'PROFESSIONAL',
+          yearsExperience: 5,
+          availability: 'AVAILABLE_FOR_COLLAB',
+          primaryCategoryId: danceCategory.id,
+          primarySkillId: danceSkillId,
+          roleAttributes: {
+            specializations: ['Contemporary', 'Contact Improvisation', 'Kathak'],
+            practiceContext: ['Theatre Stage', 'Dance Film', 'Site-Specific'],
+            tools: ['Kalaripayattu Grounding', 'Floorwork Release'],
+            choreographyRoles: ['Movement Director', 'Choreographer'],
+            languages: ['Bengali', 'Hindi', 'English'],
+          },
+        });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.data.user.role, 'CREATOR');
+
+      const cp = res.body.data.creatorProfile;
+      assert.ok(cp);
+      const roleAttrs = cp.roleAttributes as Record<string, unknown>;
+      assert.deepEqual(roleAttrs.specializations, ['Contemporary', 'Contact Improvisation', 'Kathak']);
+      assert.deepEqual(roleAttrs.choreographyRoles, ['Movement Director', 'Choreographer']);
+    });
+
+    it('Verifies existing seeded creator data remains valid without migrations', async () => {
+      const seededCreators = await prisma.creatorProfile.findMany({
+        take: 3,
+        include: { user: true, primaryCategory: true },
+      });
+
+      assert.ok(seededCreators.length > 0, 'Seeded creators must exist in the database');
+      for (const creator of seededCreators) {
+        assert.ok(creator.id, 'Creator must have valid ID');
+        assert.ok(creator.userId, 'Creator must link to user');
+        assert.ok(creator.primaryCategoryId, 'Creator must have primary category');
+        // Seeded roleAttributes (JSON) remains accessible
+        assert.ok(typeof creator.roleAttributes === 'object');
+      }
+    });
   });
 });

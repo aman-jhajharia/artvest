@@ -44,10 +44,19 @@ export function RoleAttributesDisplay({ categorySlug, roleAttributes }: RoleAttr
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      {/* Universal Creative Attributes */}
+      {Boolean(roleAttributes.specializations) ? renderBadgeGroup('Specializations', roleAttributes.specializations, <Sparkles className="w-3.5 h-3.5 text-amber-400" />) : null}
+      {Boolean(roleAttributes.practiceContext || roleAttributes.productionContext || roleAttributes.performanceContext) ?
+        renderBadgeGroup('Practice Context', roleAttributes.practiceContext || roleAttributes.productionContext || roleAttributes.performanceContext, <Tag className="w-3.5 h-3.5 text-emerald-400" />) : null}
+      {Boolean(roleAttributes.techniques) ? renderBadgeGroup('Techniques & Methods', roleAttributes.techniques, <Sliders className="w-3.5 h-3.5 text-teal-400" />) : null}
+      {Boolean(roleAttributes.mediums) ? renderBadgeGroup('Mediums & Formats', roleAttributes.mediums, <Palette className="w-3.5 h-3.5 text-indigo-400" />) : null}
+      {Boolean(roleAttributes.choreographyRoles) ? renderBadgeGroup('Choreography Roles', roleAttributes.choreographyRoles, <Sparkles className="w-3.5 h-3.5 text-fuchsia-400" />) : null}
+      {Boolean(roleAttributes.certifications) ? renderBadgeGroup('Certifications', roleAttributes.certifications, <Sliders className="w-3.5 h-3.5 text-cyan-400" />) : null}
+
       {/* Music Attributes */}
       {Boolean(roleAttributes.genres) ? renderBadgeGroup('Musical Genres', roleAttributes.genres, <Tag className="w-3.5 h-3.5 text-amber-400" />) : null}
-      {Boolean(roleAttributes.languages) ? renderBadgeGroup('Vocal Languages', roleAttributes.languages, <Globe className="w-3.5 h-3.5 text-blue-400" />) : null}
-      {Boolean(roleAttributes.vocalType) ? renderBadgeGroup('Vocal Register', roleAttributes.vocalType, <Radio className="w-3.5 h-3.5 text-pink-400" />) : null}
+      {Boolean(roleAttributes.languages) ? renderBadgeGroup('Languages', roleAttributes.languages, <Globe className="w-3.5 h-3.5 text-blue-400" />) : null}
+      {Boolean(roleAttributes.vocalType || roleAttributes.vocalRange) ? renderBadgeGroup('Vocal Register', roleAttributes.vocalType || roleAttributes.vocalRange, <Radio className="w-3.5 h-3.5 text-pink-400" />) : null}
       {Boolean(roleAttributes.instruments) ? renderBadgeGroup('Instruments', roleAttributes.instruments, <Sparkles className="w-3.5 h-3.5 text-yellow-400" />) : null}
       {Boolean(roleAttributes.daws) ? renderBadgeGroup('Production DAWs', roleAttributes.daws, <Sliders className="w-3.5 h-3.5 text-emerald-400" />) : null}
       {Boolean(roleAttributes.productionSpecialties) ? renderBadgeGroup('Production Specialties', roleAttributes.productionSpecialties, <Sliders className="w-3.5 h-3.5 text-cyan-400" />) : null}
@@ -56,15 +65,15 @@ export function RoleAttributesDisplay({ categorySlug, roleAttributes }: RoleAttr
       {Boolean(roleAttributes.photographyTypes || roleAttributes.photographyStyles) ?
         renderBadgeGroup('Photography Styles', roleAttributes.photographyTypes || roleAttributes.photographyStyles, <Camera className="w-3.5 h-3.5 text-purple-400" />) : null}
       {Boolean(roleAttributes.videoStyles) ? renderBadgeGroup('Video Styles', roleAttributes.videoStyles, <Film className="w-3.5 h-3.5 text-red-400" />) : null}
-      {Boolean(roleAttributes.equipment || roleAttributes.cameraEquipment) ?
-        renderBadgeGroup('Camera & Gear', roleAttributes.equipment || roleAttributes.cameraEquipment, <Camera className="w-3.5 h-3.5 text-orange-400" />) : null}
-      {Boolean(roleAttributes.editingTools) ? renderBadgeGroup('Editing Software', roleAttributes.editingTools, <Sliders className="w-3.5 h-3.5 text-indigo-400" />) : null}
+      {Boolean(roleAttributes.equipment || roleAttributes.cameraEquipment || roleAttributes.cameraGear) ?
+        renderBadgeGroup('Camera & Gear', roleAttributes.equipment || roleAttributes.cameraEquipment || roleAttributes.cameraGear, <Camera className="w-3.5 h-3.5 text-orange-400" />) : null}
+      {Boolean(roleAttributes.editingTools || roleAttributes.editingSuite) ? renderBadgeGroup('Editing Tools', roleAttributes.editingTools || roleAttributes.editingSuite, <Sliders className="w-3.5 h-3.5 text-indigo-400" />) : null}
       {Boolean(roleAttributes.actingStyles) ? renderBadgeGroup('Acting Methods', roleAttributes.actingStyles, <Film className="w-3.5 h-3.5 text-rose-400" />) : null}
       {Boolean(roleAttributes.projectTypes) ? renderBadgeGroup('Directing Projects', roleAttributes.projectTypes, <Film className="w-3.5 h-3.5 text-emerald-400" />) : null}
 
       {/* Design & Animation */}
       {Boolean(roleAttributes.designSpecialties) ? renderBadgeGroup('Design Specialties', roleAttributes.designSpecialties, <Palette className="w-3.5 h-3.5 text-fuchsia-400" />) : null}
-      {Boolean(roleAttributes.tools) ? renderBadgeGroup('Design Tools', roleAttributes.tools, <Sliders className="w-3.5 h-3.5 text-violet-400" />) : null}
+      {Boolean(roleAttributes.tools) ? renderBadgeGroup('Creative Tools', roleAttributes.tools, <Sliders className="w-3.5 h-3.5 text-violet-400" />) : null}
       {Boolean(roleAttributes.animationTypes) ? renderBadgeGroup('Animation Types', roleAttributes.animationTypes, <Sparkles className="w-3.5 h-3.5 text-teal-400" />) : null}
       {Boolean(roleAttributes.software) ? renderBadgeGroup('3D / VFX Software', roleAttributes.software, <Sliders className="w-3.5 h-3.5 text-sky-400" />) : null}
       {Boolean(roleAttributes.danceForms) ? renderBadgeGroup('Dance Forms', roleAttributes.danceForms, <Sparkles className="w-3.5 h-3.5 text-pink-400" />) : null}
@@ -74,9 +83,18 @@ export function RoleAttributesDisplay({ categorySlug, roleAttributes }: RoleAttr
         .filter(
           ([key]) =>
             ![
+              'specializations',
+              'practiceContext',
+              'productionContext',
+              'performanceContext',
+              'techniques',
+              'mediums',
+              'choreographyRoles',
+              'certifications',
               'genres',
               'languages',
               'vocalType',
+              'vocalRange',
               'instruments',
               'daws',
               'productionSpecialties',
@@ -85,7 +103,9 @@ export function RoleAttributesDisplay({ categorySlug, roleAttributes }: RoleAttr
               'videoStyles',
               'equipment',
               'cameraEquipment',
+              'cameraGear',
               'editingTools',
+              'editingSuite',
               'actingStyles',
               'projectTypes',
               'designSpecialties',
