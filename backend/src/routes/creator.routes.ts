@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { CreatorController } from '../controllers/creator.controller.js';
+import { PostController } from '../controllers/post.controller.js';
 import { requireAuth, requireRole } from '../middleware/auth.middleware.js';
 import { UserRole } from '@prisma/client';
 
@@ -18,5 +19,8 @@ router.get('/skills', CreatorController.getSkills);
 router.post('/skills', CreatorController.addSkill);
 router.patch('/skills/:skillId', CreatorController.updateSkill);
 router.delete('/skills/:skillId', CreatorController.deleteSkill);
+
+// Creator studio posts management
+router.get('/posts', PostController.getCreatorPosts);
 
 export const creatorRoutes = router;
