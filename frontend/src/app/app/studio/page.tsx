@@ -1,170 +1,373 @@
 'use client';
 
-import React from 'react';
-import { PhaseBanner } from '@/components/ui/PhaseBanner';
+import React, { useState, useEffect, useCallback } from 'react';
+import { PostItem, PostStatus } from '@/features/posts/types/post.types';
+import { PostApiService } from '@/features/posts/services/post.service';
+import { CreateShowcaseModal } from '@/features/posts/components/CreateShowcaseModal';
 import {
-  Users,
-  Eye,
-  Heart,
-  MessageSquare,
   Sparkles,
-  TrendingUp,
-  Award,
-  Upload,
-  UserCheck,
+  PlusCircle,
+  Star,
+  Trash2,
+  Edit,
+  Send,
+  Loader2,
+  Clock,
+  Eye,
+  Layers,
+  Film,
+  Music,
+  Image as ImageIcon,
+  FileText,
+  AlertTriangle,
+  CheckCircle,
 } from 'lucide-react';
 
 export default function StudioPage() {
-  const stats = [
-    { label: 'Followers', value: '1,420', change: '+12% this month', icon: Users, color: 'text-amber-400' },
-    { label: 'Showcase Views', value: '28,940', change: '+24% this month', icon: Eye, color: 'text-cyan-400' },
-    { label: 'Appreciation Likes', value: '3,810', change: '+8% this month', icon: Heart, color: 'text-pink-400' },
-    { label: 'Community Comments', value: '492', change: '+15% this month', icon: MessageSquare, color: 'text-indigo-400' },
-  ];
+  const [activeTab, setActiveTab] = useState<'PUBLISHED' | 'DRAFT' | 'FEATURED'>('PUBLISHED');
+  const [posts, setPosts] = useState<PostItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [editingPost, setEditingPost] = useState<PostItem | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  const loadPosts = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      let queryParams: any = {};
+      if (activeTab === 'FEATURED') {
+        queryParams.status = 'PUBLISHED';
+        queryParams.isFeatured = true;
+      } else {
+        queryParams.status = activeTab;
+      }
+
+      const res = await PostApiService.getCreatorPosts(queryParams);
+      if (res.success && res.data) {
+        setPosts(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load studio posts:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    loadPosts();
+  }, [loadPosts]);
+
+  const handlePublish = async (postId: string) => {
+    try {
+      const res = await PostApiService.publishPost(postId);
+      if (res.success) {
+        setActionMessage('Post successfully published to showcase feed and portfolio!');
+        setTimeout(() => setActionMessage(null), 4000);
+        loadPosts();
+      } else {
+        alert(res.message || res.error?.details || 'Failed to publish post');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error publishing post');
+    }
+  };
+
+  const handleDelete = async (postId: string) => {
+    if (!confirm('Are you sure you want to permanently delete this showcase?')) return;
+    try {
+      const res = await PostApiService.deletePost(postId);
+      if (res.success) {
+        setPosts((prev) => prev.filter((p) => p.id !== postId));
+        setActionMessage('Showcase deleted successfully.');
+        setTimeout(() => setActionMessage(null), 4000);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error deleting post');
+    }
+  };
+
+  const handleToggleFeature = async (postId: string, currentFeatured: boolean) => {
+    try {
+      const nextFeatured = !currentFeatured;
+      const res = await PostApiService.setFeatured(postId, nextFeatured);
+      if (res.success) {
+        setPosts((prev) =>
+          prev.map((p) => (p.id === postId ? { ...p, isFeatured: nextFeatured } : p))
+        );
+        setActionMessage(
+          nextFeatured
+            ? 'Showcase is now featured at the top of your portfolio!'
+            : 'Showcase unfeatured from portfolio spotlight.'
+        );
+        setTimeout(() => setActionMessage(null), 4000);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error updating featured status');
+    }
+  };
+
+  const openCreateModal = () => {
+    setEditingPost(null);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (post: PostItem) => {
+    setEditingPost(post);
+    setIsModalOpen(true);
+  };
+
+  const getMediaIcon = (type: string) => {
+    switch (type) {
+      case 'VIDEO':
+        return Film;
+      case 'AUDIO':
+        return Music;
+      case 'TEXT':
+        return FileText;
+      case 'IMAGE':
+      default:
+        return ImageIcon;
+    }
+  };
 
   return (
-    <div>
-      <PhaseBanner
-        phase="Phase 1 Foundation"
-        featureName="Creator Studio & Analytics"
-        description="This shell demonstrates creator portfolio health, engagement aggregation, and collaboration status management. Real backend analytics aggregations will be plugged in Phase 6."
-      />
-
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+    <div className="space-y-6 max-w-5xl mx-auto pb-16">
+      {/* Studio Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-white tracking-tight">Creator Studio</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-black text-white tracking-tight">Creator Content Studio</h1>
+            <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/20">
+              Phase 3
+            </span>
+          </div>
           <p className="text-xs text-gray-400 mt-1">
-            Manage your professional showcase, verify portfolio attributes, and track community engagement
+            Manage your creative portfolio showcases, unpublished drafts, and featured spotlight works
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={openCreateModal}
+          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-105 text-black text-xs font-bold shadow-lg shadow-amber-400/20 transition-all flex items-center gap-2 self-start sm:self-auto"
+        >
+          <PlusCircle className="w-4 h-4" />
+          <span>Create Showcase</span>
+        </button>
+      </div>
+
+      {/* Action Notification */}
+      {actionMessage && (
+        <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-center gap-2.5 animate-fadeIn">
+          <CheckCircle className="w-4 h-4 shrink-0" />
+          <span>{actionMessage}</span>
+        </div>
+      )}
+
+      {/* Studio Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+        {[
+          { id: 'PUBLISHED', label: 'Published Work' },
+          { id: 'DRAFT', label: 'Drafts' },
+          { id: 'FEATURED', label: 'Featured Spotlight' },
+        ].map((tab) => (
           <button
+            key={tab.id}
             type="button"
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black text-xs font-bold shadow-md shadow-amber-500/20 hover:brightness-105 transition-all flex items-center gap-2"
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+              activeTab === tab.id
+                ? 'bg-amber-400 text-black border-amber-400 shadow-md shadow-amber-400/20'
+                : 'bg-white/[0.02] text-gray-400 border-white/10 hover:border-white/20 hover:text-white'
+            }`}
           >
-            <Upload className="w-3.5 h-3.5" />
-            Upload New Showcase
+            {tab.label}
           </button>
-        </div>
+        ))}
       </div>
 
-      {/* Profile Completion Bar */}
-      <div className="glass-panel rounded-2xl p-6 mb-8 border border-white/10">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2.5">
-            <Award className="w-5 h-5 text-amber-400" />
-            <div>
-              <h3 className="text-sm font-bold text-white">Creator Profile Strength: 85%</h3>
-              <p className="text-xs text-gray-400">
-                Add your equipment list & collaboration preferences to reach 100%
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-bold text-amber-300 bg-amber-400/10 px-2.5 py-1 rounded-lg border border-amber-400/20">
-            Professional Rank
-          </span>
+      {/* Content List */}
+      {isLoading ? (
+        <div className="p-16 text-center space-y-3">
+          <Loader2 className="w-8 h-8 animate-spin text-amber-400 mx-auto" />
+          <p className="text-xs font-mono text-gray-400">Loading your creative works...</p>
         </div>
+      ) : posts.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {posts.map((post) => {
+            const MediaIcon = getMediaIcon(post.postType);
+            const firstMedia = post.media && post.media[0];
 
-        <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/10">
-          <div className="bg-gradient-to-r from-amber-400 to-pink-500 h-full rounded-full w-[85%]" />
-        </div>
-      </div>
+            return (
+              <div
+                key={post.id}
+                className="rounded-2xl bg-white/[0.03] border border-white/10 overflow-hidden flex flex-col justify-between hover:border-white/20 transition-all group"
+              >
+                <div>
+                  {/* Media Thumbnail */}
+                  <div className="h-44 bg-black/60 relative overflow-hidden flex items-center justify-center">
+                    {firstMedia?.url ? (
+                      firstMedia.mediaType === 'IMAGE' ? (
+                        <img
+                          src={firstMedia.thumbnailUrl || firstMedia.url}
+                          alt={post.title || 'Showcase'}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : firstMedia.mediaType === 'VIDEO' ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-purple-950/40 text-purple-300">
+                          <Film className="w-8 h-8" />
+                          <span className="text-[10px] font-mono">Video Reel</span>
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-amber-950/40 text-amber-300">
+                          <Music className="w-8 h-8" />
+                          <span className="text-[10px] font-mono">Audio Stem</span>
+                        </div>
+                      )
+                    ) : (
+                      <div className="flex flex-col items-center gap-1.5 text-gray-500">
+                        <MediaIcon className="w-8 h-8" />
+                        <span className="text-[10px] font-mono">{post.postType}</span>
+                      </div>
+                    )}
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {stats.map((stat, idx) => {
-          const Icon = stat.icon;
-          return (
-            <div key={idx} className="glass-card rounded-2xl p-5 border border-white/10">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs text-gray-400 font-medium">{stat.label}</span>
-                <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
-                  <Icon className={`w-4 h-4 ${stat.color}`} />
+                    {/* Status Badge */}
+                    <span
+                      className={`absolute top-3 left-3 text-[10px] font-mono px-2 py-0.5 rounded backdrop-blur-md border ${
+                        post.status === 'PUBLISHED'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      }`}
+                    >
+                      {post.status}
+                    </span>
+
+                    {/* Featured star toggle */}
+                    <button
+                      type="button"
+                      title={post.isFeatured ? 'Unfeature work' : 'Feature work in portfolio'}
+                      onClick={() => handleToggleFeature(post.id, post.isFeatured)}
+                      className={`absolute top-3 right-3 p-1.5 rounded-lg backdrop-blur-md border transition-all ${
+                        post.isFeatured
+                          ? 'bg-amber-400 text-black border-amber-400'
+                          : 'bg-black/60 text-gray-400 border-white/20 hover:text-white'
+                      }`}
+                    >
+                      <Star className={`w-3.5 h-3.5 ${post.isFeatured ? 'fill-black' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* Card Content */}
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-gray-300 border border-white/10 flex items-center gap-1">
+                        <MediaIcon className="w-3 h-3 text-amber-400" />
+                        {post.postType}
+                      </span>
+                      {post.category && (
+                        <span className="text-[10px] font-mono text-gray-400 truncate">
+                          {post.category.name}
+                        </span>
+                      )}
+                    </div>
+
+                    <h3 className="text-sm font-bold text-white tracking-tight line-clamp-1">
+                      {post.title || 'Untitled Showcase'}
+                    </h3>
+
+                    <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
+                      {post.caption}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Card Action Footer */}
+                <div className="p-4 pt-2 border-t border-white/5 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    {post.status === 'DRAFT' && (
+                      <button
+                        type="button"
+                        onClick={() => handlePublish(post.id)}
+                        className="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 font-semibold flex items-center gap-1"
+                      >
+                        <Send className="w-3 h-3" />
+                        <span>Publish</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(post)}
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+                      title="Edit showcase"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(post.id)}
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-300 transition-colors"
+                      title="Delete showcase"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <span className="text-[11px] font-mono text-gray-500 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {new Date(post.createdAt).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </span>
                 </div>
               </div>
-              <div className="text-2xl font-black text-white tracking-tight">{stat.value}</div>
-              <div className="flex items-center gap-1 text-[11px] text-emerald-400 mt-2 font-medium">
-                <TrendingUp className="w-3 h-3" />
-                <span>{stat.change}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Collaboration Inquiries Preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="glass-panel rounded-2xl p-6 border border-white/10">
-          <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-            <div className="flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-indigo-400" />
-              <h3 className="text-sm font-bold text-white">Collaboration Requests</h3>
-            </div>
-            <span className="text-xs text-amber-400 font-medium">Phase 1 Extension</span>
-          </div>
-
-          <div className="space-y-3">
-            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-white">Kabir Verma (Cinematographer)</p>
-                <p className="text-[11px] text-gray-400">
-                  Interested in collaborating on acoustic vocal recording for documentary
-                </p>
-              </div>
-              <span className="text-[10px] text-amber-400 font-mono bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
-                Pending
-              </span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-white">Devika Nair (3D Environment)</p>
-                <p className="text-[11px] text-gray-400">
-                  Invited you to collaborate on immersive spatial audio experiment
-                </p>
-              </div>
-              <span className="text-[10px] text-indigo-400 font-mono bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">
-                Connected
-              </span>
-            </div>
-          </div>
+            );
+          })}
         </div>
-
-        {/* Top Performing Showcase */}
-        <div className="glass-panel rounded-2xl p-6 border border-white/10">
-          <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-pink-400" />
-              <h3 className="text-sm font-bold text-white">Top Showcase Engagement</h3>
-            </div>
-            <span className="text-xs text-gray-400">Past 30 Days</span>
+      ) : (
+        /* Empty State */
+        <div className="p-12 rounded-3xl bg-white/[0.02] border border-dashed border-white/15 text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center mx-auto">
+            <Sparkles className="w-6 h-6" />
           </div>
 
-          <div className="p-4 rounded-xl bg-black/40 border border-white/5">
-            <h4 className="text-xs font-bold text-white mb-1">
-              Raag Yaman Acoustic Vocal Exploration with Ambient Pads
-            </h4>
-            <p className="text-[11px] text-gray-400 mb-3">
-              Music • Audio Showcase • 3:42 Duration
+          <div className="max-w-md mx-auto space-y-1">
+            <h3 className="text-base font-bold text-white">
+              {activeTab === 'DRAFT'
+                ? 'No drafts yet.'
+                : activeTab === 'FEATURED'
+                ? 'No featured work yet.'
+                : 'Add your first creative work.'}
+            </h3>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              {activeTab === 'DRAFT'
+                ? 'When you start building a showcase, you can save unfinished work here as a draft.'
+                : activeTab === 'FEATURED'
+                ? 'Toggle the star icon on any published showcase to highlight it at the top of your public portfolio.'
+                : 'Upload visual art, audio stems, video reels, or literary scripts to begin building your ArtVest portfolio.'}
             </p>
-            <div className="grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="p-2 rounded bg-white/5">
-                <div className="text-gray-400 text-[10px]">Plays</div>
-                <div className="font-bold text-white">14,200</div>
-              </div>
-              <div className="p-2 rounded bg-white/5">
-                <div className="text-gray-400 text-[10px]">Appreciations</div>
-                <div className="font-bold text-pink-400">1,920</div>
-              </div>
-              <div className="p-2 rounded bg-white/5">
-                <div className="text-gray-400 text-[10px]">Saves</div>
-                <div className="font-bold text-cyan-400">418</div>
-              </div>
-            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="px-4 py-2 rounded-xl bg-amber-400 text-black font-bold text-xs hover:bg-amber-300 transition-colors inline-flex items-center gap-1.5 shadow-md shadow-amber-400/20"
+          >
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span>Create New Showcase</span>
+          </button>
         </div>
-      </div>
+      )}
+
+      {/* Create / Edit Modal */}
+      <CreateShowcaseModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={() => loadPosts()}
+        initialPost={editingPost}
+      />
     </div>
   );
 }
