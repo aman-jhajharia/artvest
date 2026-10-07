@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { PostItem, PostStatus } from '@/features/posts/types/post.types';
 import { PostApiService } from '@/features/posts/services/post.service';
 import { CreateShowcaseModal } from '@/features/posts/components/CreateShowcaseModal';
+import { CollaborationInquiriesList } from '@/features/interactions/components/CollaborationInquiriesList';
 import {
   Sparkles,
   PlusCircle,
@@ -21,10 +22,14 @@ import {
   FileText,
   AlertTriangle,
   CheckCircle,
+  Handshake,
+  Heart,
+  MessageSquare,
+  Bookmark,
 } from 'lucide-react';
 
 export default function StudioPage() {
-  const [activeTab, setActiveTab] = useState<'PUBLISHED' | 'DRAFT' | 'FEATURED'>('PUBLISHED');
+  const [activeTab, setActiveTab] = useState<'PUBLISHED' | 'DRAFT' | 'FEATURED' | 'COLLABORATION'>('PUBLISHED');
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingPost, setEditingPost] = useState<PostItem | null>(null);
@@ -32,6 +37,11 @@ export default function StudioPage() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const loadPosts = useCallback(async () => {
+    if (activeTab === 'COLLABORATION') {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       let queryParams: any = {};
@@ -165,17 +175,18 @@ export default function StudioPage() {
       )}
 
       {/* Studio Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+      <div className="flex items-center gap-2 border-b border-white/10 pb-3 overflow-x-auto">
         {[
           { id: 'PUBLISHED', label: 'Published Work' },
           { id: 'DRAFT', label: 'Drafts' },
           { id: 'FEATURED', label: 'Featured Spotlight' },
+          { id: 'COLLABORATION', label: 'Collaboration Inquiries' },
         ].map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id as any)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border whitespace-nowrap ${
               activeTab === tab.id
                 ? 'bg-amber-400 text-black border-amber-400 shadow-md shadow-amber-400/20'
                 : 'bg-white/[0.02] text-gray-400 border-white/10 hover:border-white/20 hover:text-white'
@@ -187,7 +198,9 @@ export default function StudioPage() {
       </div>
 
       {/* Content List */}
-      {isLoading ? (
+      {activeTab === 'COLLABORATION' ? (
+        <CollaborationInquiriesList />
+      ) : isLoading ? (
         <div className="p-16 text-center space-y-3">
           <Loader2 className="w-8 h-8 animate-spin text-amber-400 mx-auto" />
           <p className="text-xs font-mono text-gray-400">Loading your creative works...</p>
@@ -278,6 +291,23 @@ export default function StudioPage() {
                     <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
                       {post.caption}
                     </p>
+
+                    {post.status === 'PUBLISHED' && (
+                      <div className="flex items-center gap-3 pt-1 text-[11px] font-mono text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <Heart className="w-3 h-3 text-gray-500" />
+                          {post.likeCount ?? 0}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <MessageSquare className="w-3 h-3 text-gray-500" />
+                          {post.commentCount ?? 0}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Bookmark className="w-3 h-3 text-gray-500" />
+                          {post.saveCount ?? 0}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

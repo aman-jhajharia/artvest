@@ -71,6 +71,12 @@ export interface PostItem {
     slug: string;
   }>;
   media: PostMediaItem[];
+  likeCount?: number;
+  commentCount?: number;
+  saveCount?: number;
+  likedByMe?: boolean;
+  savedByMe?: boolean;
+  followingCreator?: boolean;
 }
 
 export interface CreatePostPayload {

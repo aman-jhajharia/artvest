@@ -7,6 +7,9 @@ import { CreatorApiService } from '@/features/creator/services/creator.service';
 import { FullCreatorProfile } from '@/features/creator/types/creator.types';
 import { RoleAttributesDisplay } from '@/features/creator/components/RoleAttributesDisplay';
 import { PortfolioSection } from '@/features/creator/components/PortfolioSection';
+import { InteractionApiService } from '@/features/interactions/services/interaction.service';
+import { CollaborateModal } from '@/features/interactions/components/CollaborateModal';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 import {
   MapPin,
   CheckCircle2,
@@ -18,20 +21,29 @@ import {
   Lock,
   Loader2,
   UserCheck,
+  UserPlus,
   ArrowLeft,
   Share2,
-  MessageSquare,
+  Handshake,
 } from 'lucide-react';
 
 function PublicCreatorProfileContent() {
   const params = useParams();
   const creatorId = params?.creatorId as string;
+  const { user } = useAuth();
 
   const [creatorProfile, setCreatorProfile] = useState<FullCreatorProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isPrivate, setIsPrivate] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'SHOWCASE' | 'SKILLS' | 'ATTRIBUTES' | 'ABOUT'>('SHOWCASE');
+
+  // Social Graph States
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [postCount, setPostCount] = useState(0);
+  const [isCollabModalOpen, setIsCollabModalOpen] = useState(false);
 
   useEffect(() => {
     if (creatorId) {
@@ -48,6 +60,10 @@ function PublicCreatorProfileContent() {
       const res = await CreatorApiService.getPublicCreatorProfile(id);
       if (res.success && res.data) {
         setCreatorProfile(res.data);
+        setIsFollowing(res.data.isFollowing ?? false);
+        setFollowerCount(res.data.followerCount ?? 0);
+        setFollowingCount(res.data.followingCount ?? 0);
+        setPostCount(res.data.postCount ?? (res.data.portfolio?.length ?? 0));
       } else if (res.error?.code === 'PROFILE_PRIVATE') {
         setIsPrivate(true);
       } else {
@@ -57,6 +73,39 @@ function PublicCreatorProfileContent() {
       setErrorMessage('Could not connect to service');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleFollowToggle = async () => {
+    if (!user) {
+      alert('Please log in to follow creators.');
+      return;
+    }
+
+    if (!creatorProfile) return;
+
+    const previousState = isFollowing;
+    const previousCount = followerCount;
+
+    setIsFollowing(!previousState);
+    setFollowerCount(previousState ? Math.max(0, previousCount - 1) : previousCount + 1);
+
+    try {
+      const targetIdentifier = creatorProfile.id;
+      const res = previousState
+        ? await InteractionApiService.unfollowCreator(targetIdentifier)
+        : await InteractionApiService.followCreator(targetIdentifier);
+
+      if (res.success && res.data) {
+        setIsFollowing(res.data.following);
+        setFollowerCount(res.data.followersCount);
+      } else {
+        setIsFollowing(previousState);
+        setFollowerCount(previousCount);
+      }
+    } catch {
+      setIsFollowing(previousState);
+      setFollowerCount(previousCount);
     }
   };
 
@@ -207,21 +256,61 @@ function PublicCreatorProfileContent() {
               </div>
             </div>
 
-            {/* Collab Capability Callout */}
-            <div className="flex items-center justify-center gap-3">
-              <span className="text-xs font-mono px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-medium flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                {creatorProfile.availability.replace(/_/g, ' ')}
-              </span>
+            {/* Social Graph Stats & Actions */}
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              {/* Follower / Following / Showcase Stats */}
+              <div className="flex items-center gap-5 px-4 py-2 rounded-2xl bg-white/[0.03] border border-white/10 font-mono text-xs">
+                <div className="text-center">
+                  <span className="font-bold text-white block text-sm">{followerCount}</span>
+                  <span className="text-[10px] text-gray-400">Followers</span>
+                </div>
+                <div className="w-px h-6 bg-white/10" />
+                <div className="text-center">
+                  <span className="font-bold text-white block text-sm">{followingCount}</span>
+                  <span className="text-[10px] text-gray-400">Following</span>
+                </div>
+                <div className="w-px h-6 bg-white/10" />
+                <div className="text-center">
+                  <span className="font-bold text-white block text-sm">{postCount}</span>
+                  <span className="text-[10px] text-gray-400">Works</span>
+                </div>
+              </div>
 
-              <button
-                disabled
-                title="Direct team building & collaboration inquiries unlock in Phase 4"
-                className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 text-xs font-semibold cursor-not-allowed flex items-center gap-1.5"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>Collaborate (Phase 4)</span>
-              </button>
+              {/* Collab Capability Callout & Actions */}
+              <div className="flex items-center justify-center gap-2">
+                {user?.id !== creatorProfile.userId && (
+                  <>
+                    <button
+                      onClick={handleFollowToggle}
+                      className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-1.5 shadow-md ${
+                        isFollowing
+                          ? 'bg-white/10 text-gray-300 hover:bg-rose-500/20 hover:text-rose-300 border border-white/10'
+                          : 'bg-amber-400 text-black hover:brightness-105 shadow-amber-400/20'
+                      }`}
+                    >
+                      {isFollowing ? (
+                        <>
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>Following</span>
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="w-3.5 h-3.5" />
+                          <span>Follow</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setIsCollabModalOpen(true)}
+                      className="px-4 py-2 rounded-xl bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-amber-400/10"
+                    >
+                      <Handshake className="w-3.5 h-3.5" />
+                      <span>Collaborate</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -370,6 +459,16 @@ function PublicCreatorProfileContent() {
           )}
         </div>
       </main>
+
+      {/* Structured Collaboration Modal */}
+      {creatorProfile && (
+        <CollaborateModal
+          recipientId={creatorProfile.id}
+          recipientName={creatorProfile.stageName || creatorProfile.user.name}
+          isOpen={isCollabModalOpen}
+          onClose={() => setIsCollabModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

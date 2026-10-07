@@ -12,6 +12,9 @@ import {
   Image as ImageIcon,
   FileText,
   Clock,
+  Heart,
+  MessageSquare,
+  Bookmark,
 } from 'lucide-react';
 import { MediaGallery } from '@/features/posts/components/MediaGallery';
 import { TextPreview } from '@/features/posts/components/TextPreview';
@@ -86,13 +89,22 @@ export function PortfolioSection({ portfolio = [], isOwner = false }: PortfolioS
 
         {/* Footer */}
         <div className="p-4 pt-2 border-t border-white/5 flex items-center justify-between text-xs text-gray-500">
-          {item.category && (
-            <span className="text-[11px] font-mono text-gray-400 truncate">
-              {item.category.name}
+          <div className="flex items-center gap-3 text-[11px] font-mono text-gray-400">
+            <span className="flex items-center gap-1 hover:text-rose-300">
+              <Heart className="w-3 h-3 text-gray-500" />
+              {item.likeCount ?? 0}
             </span>
-          )}
+            <span className="flex items-center gap-1 hover:text-amber-300">
+              <MessageSquare className="w-3 h-3 text-gray-500" />
+              {item.commentCount ?? 0}
+            </span>
+            <span className="flex items-center gap-1 hover:text-amber-300">
+              <Bookmark className="w-3 h-3 text-gray-500" />
+              {item.saveCount ?? 0}
+            </span>
+          </div>
 
-          <span className="text-[11px] font-mono flex items-center gap-1 ml-auto">
+          <span className="text-[11px] font-mono flex items-center gap-1 ml-auto text-gray-500">
             <Clock className="w-3 h-3" />
             {new Date(item.createdAt).toLocaleDateString('en-US', {
               month: 'short',

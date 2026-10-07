@@ -50,6 +50,9 @@ export interface PortfolioItem {
   createdAt: string;
   media: PortfolioMedia[];
   category?: Category | null;
+  likeCount?: number;
+  commentCount?: number;
+  saveCount?: number;
 }
 
 export interface FullCreatorProfile {
@@ -82,6 +85,10 @@ export interface FullCreatorProfile {
   updatedAt: string;
   creatorSkills: CreatorSkillRelation[];
   portfolio?: PortfolioItem[];
+  followerCount?: number;
+  followingCount?: number;
+  isFollowing?: boolean;
+  postCount?: number;
   user: {
     id: string;
     name: string;
