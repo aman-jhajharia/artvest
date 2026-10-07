@@ -48,13 +48,16 @@ export class CreatorService {
             isOnboarded: true,
             createdAt: true,
             posts: {
-              where: { isFeatured: true },
+              where: { status: 'PUBLISHED' },
               include: {
-                media: true,
+                media: {
+                  orderBy: { orderIndex: 'asc' },
+                },
                 category: true,
+                skills: true,
               },
-              orderBy: { createdAt: 'desc' },
-              take: 12,
+              orderBy: [{ isFeatured: 'desc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }],
+              take: 24,
             },
           },
         },
@@ -123,13 +126,16 @@ export class CreatorService {
             role: true,
             createdAt: true,
             posts: {
-              where: { isFeatured: true },
+              where: { status: 'PUBLISHED' },
               include: {
-                media: true,
+                media: {
+                  orderBy: { orderIndex: 'asc' },
+                },
                 category: true,
+                skills: true,
               },
-              orderBy: { createdAt: 'desc' },
-              take: 12,
+              orderBy: [{ isFeatured: 'desc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }],
+              take: 24,
             },
           },
         },
