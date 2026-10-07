@@ -58,6 +58,12 @@ enum MediaType {
 }
 
 enum NotificationType {
+  POST_LIKED
+  COMMENT_CREATED
+  CREATOR_FOLLOWED
+  COLLABORATION_INQUIRY_CREATED
+  COLLABORATION_ACCEPTED
+  COLLABORATION_DECLINED
   LIKE
   COMMENT
   FOLLOW
@@ -399,16 +405,17 @@ model Notification {
   title        String
   message      String
   resourceId   String?
-  resourceType String?          // "POST", "USER", etc.
+  resourceType String?          // "POST", "USER", "INQUIRY", etc.
   isRead       Boolean          @default(false)
+  readAt       DateTime?
   createdAt    DateTime         @default(now())
 
   recipient    User             @relation("RecipientNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
   actor        User?            @relation("ActorNotifications", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([recipientId])
-  @@index([isRead])
-  @@index([createdAt])
+  @@index([recipientId, isRead])
+  @@index([recipientId, createdAt])
 }
 
 model Report {
