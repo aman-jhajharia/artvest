@@ -24,9 +24,9 @@ Traditional platforms treat every creator identically with a generic bio and pho
 - **Phase 2**: Creator Identity, Profiles & Portfolio Foundation (Live profile viewing & editing, dynamic skill management with proficiencies, discipline-specific role metadata validation, explainable profile strength scoring, public profile discovery `/creator/:creatorId`, privacy controls).
 - **Phase 3**: Multimedia Portfolio & Showcase Posts (Extensible media model: Image, Video, Audio, Text, Showcase; Cloudinary/local media abstraction; 5-step showcase creator flow; Creator Studio `/app/studio` with Drafts, Published, and Featured work; interactive waveform audio player; live chronological showcase feed `/app`; tests 43/43).
 - **Phase 4**: Social Graph & Creative Interaction (Post likes & unlikes with unique constraint, saved bookmarks with paginated `/app/saved`, nested comments & replies with ownership rules, creator follow/unfollow graph, structured collaboration inquiries with PENDING/ACCEPTED/DECLINED/WITHDRAWN lifecycle state machine, Studio inquiries manager, tests 83/83).
-- **Phase 5 (Current Milestone - Completed)**: **Explore & Structured Discovery** (Multi-attribute discovery by discipline, skill, location, experience, availability, and proficiency; multi-token keyword matching; transparent deterministic relevance scoring; URL query state synchronization; responsive filter sidebar & drawer; tests 108/108).
-- **Phase 6 (Next Milestone)**: Creator Studio + Notifications (Studio analytics, event-driven notification alerts).
-- **Phase 7**: Midterm Stabilization (End-to-end integration, academic viva prep, demo data seeding).
+-**Phase 5**: Explore & Structured Discovery (Multi-attribute discovery by discipline, skill, location, experience, availability, and proficiency; multi-token keyword matching; transparent deterministic relevance scoring; URL query state synchronization; responsive filter sidebar & drawer; tests 108/108).
+- **Phase 6 (Current Milestone - Completed)**: **Creator Studio & Notifications** (Private Creator Studio dashboard `/app/studio` with verified real metrics, deterministic top-post engagement ranking, post performance analytics; decoupled event-driven in-app notifications `/app/notifications`, live unread counter badge, read state transitions, self-notification suppression, debounced domain events; tests 131/131).
+- **Phase 7 (Next Milestone)**: Midterm Stabilization (End-to-end integration, academic viva prep, demo data seeding).
 - **Phase 8-13**: Creative Projects, Multidisciplinary Teams & Community Backing.
 
 ---
@@ -162,12 +162,13 @@ npm run dev:frontend  # Next.js on http://localhost:3000
 ```bash
 npm test
 ```
-The test suite executes 108/108 automated integration tests (100% passing):
+The test suite executes 131/131 automated integration tests (100% passing):
 - **Phase 1 (13 tests)**: Google OAuth verification, session cookie issuance, re-onboarding prevention, RBAC elevation blocking.
 - **Phase 2 (14 tests)**: Creator profile retrieval, partial PATCH updates, validation rejection, 403 enforcement on non-creators, dynamic skill addition, duplicate skill conflict (409), skill deletion, session scoping isolation, roleAttributes discipline validation, deterministic profile completion, dynamic score recalculation, public profile visibility & privacy (`isPublic`), and user/creator separation.
 - **Phase 3 (16 tests)**: Showcase draft creation, studio retrieval, draft modification, cross-creator modification isolation (403), draft deletion, draft-to-published lifecycle transition, incomplete post publishing rejection (400), draft privacy from public feed, published feed appearance, creator portfolio integration, featured ordering priority, standard USER restriction (403), unsupported media format rejection (400), file size limit enforcement (400), mutation ownership enforcement, feed pagination.
 - **Phase 4 (40 tests)**: Like/unlike posts, unique constraints preventing duplicate likes, save/unsave posts, unique constraint on saves, draft post interaction rejection (400), comments and nested replies, self-reply prevention, cross-post parent rejection, owner comment edits and deletions, non-owner comment mutation blocking (403), follow/unfollow creators, self-follow prevention, follower/following lists, structured collaboration inquiry lifecycle (create, list sent/received, sender withdraw, recipient accept/decline, cross-user modification rejection, invalid status transition blocking, draft post reference rejection).
 - **Phase 5 (25 tests)**: Public creator discovery, private creator exclusion (`isPublic: false`), category filtering, skill/role filtering, location/city matching, experience level filtering, availability status filtering, multi-attribute filter composition, empty results behavior, keyword search across fields, multi-token compound search ("Classical Singer in Jaipur"), explainable deterministic relevance scoring breakdown, sorting by profile strength, sorting by newest, pagination and limits, pagination limit validation (400), invalid enum filter rejection (400), published showcase discovery, draft post exclusion, postType filtering, authenticated viewer relationship state (`isFollowing`), unauthenticated discovery, explore overview combining creators/showcases/taxonomy, proficiency filtering, and stable tie-breaking for identical scores.
+- **Phase 6 (23 tests)**: Like event notification, self-like notification suppression, comment event notification, follow event notification, collaboration inquiry notification, inquiry acceptance notification, inquiry decline notification, unauthenticated notification rejection (401), cross-user notification mutation blocking (403), mark single notification as read, mark all notifications as read, real database unread count calculation, notification pagination, invalid pagination rejection (400), server-side recipient derivation from session, Creator Studio authorized access (200), standard USER studio restriction (403), unauthenticated studio restriction (401), studio overview metrics aggregation (posts, published, drafts, likes, comments, saves, followers, inquiries, acceptance rate), deterministic top posts ranking, empty creator data zero handling, studio posts performance endpoint with sorting, cross-creator analytics isolation.
 
 ---
 
@@ -329,27 +330,72 @@ Ties are broken deterministically using `profileCompletionScore DESC`, then `cre
 
 ---
 
-## 8. Academic Defense Q&A Highlights
+## 8. Phase 6 Architecture: Creator Studio & In-App Notifications
+
+### 8.1 Creator Studio Domain
+- **Route**: `/app/studio` (server-side guarded by `requireRole(UserRole.CREATOR)`).
+- **Zero Fabricated Metrics**: All metrics are aggregated directly from PostgreSQL:
+  - Posts: Total, Published, Draft, and Featured.
+  - Engagement: Total Likes, Comments, Saves, and compound deterministic metric $\text{Total Engagement} = \text{Likes} + \text{Comments} + \text{Saves}$.
+  - Followers: Verified total follower count and chronological recent follower list.
+  - Collaboration Pipeline: Total inquiries, pending review, accepted, declined, and verified Acceptance Rate:
+    $$\text{Acceptance Rate} = \frac{\text{Accepted}}{\text{Accepted} + \text{Declined}} \times 100$$
+  - Profile Views: Real authenticated counter from `CreatorProfile.viewCount`.
+- **Deterministic Top Posts Ranking**:
+  $$\text{engagementScore} = \text{likes} + \text{comments} + \text{saves}$$
+  Stable tie-breaking: `engagementScore DESC`, `publishedAt DESC`, `id ASC`.
+- **Post Performance Endpoint (`GET /api/studio/posts`)**: Paginated post performance with sorting by `engagement`, `likes`, `comments`, `saves`, `views`, or `newest`.
+
+### 8.2 In-App Notification Domain
+- **Route**: `/app/notifications`
+- **Domain Event Handlers**:
+  - `POST_LIKED`: Triggered on showcase like (suppressed for self-like).
+  - `COMMENT_CREATED`: Triggered on showcase comment (suppressed for self-comment).
+  - `CREATOR_FOLLOWED`: Triggered when an enthusiast follows a creator.
+  - `COLLABORATION_INQUIRY_CREATED`: Triggered when an inquiry is dispatched.
+  - `COLLABORATION_ACCEPTED`: Triggered when an inquiry is accepted.
+  - `COLLABORATION_DECLINED`: Triggered when an inquiry is declined.
+- **Rules & Guardrails**:
+  - Self-notification suppression: Users are never alerted about their own interactions.
+  - Rapid-action debouncing: Repeated actions for the same resource within 60 seconds are deduplicated.
+  - Server-side recipient derivation: Never trusts client-supplied recipient IDs.
+  - Ownership protection: Users cannot view or mutate another user's notifications (`403 Forbidden`).
+  - Real-time unread badge: Indexed counter query `@@index([recipientId, isRead])`.
+
+### 8.3 REST API Surface (Studio & Notifications)
+
+| Method | Endpoint | Authorization | Description |
+|---|---|---|---|
+| `GET` | `/api/studio/overview` | `CREATOR` only | Comprehensive studio metrics, profile snapshot, funnel, and top posts |
+| `GET` | `/api/studio/posts` | `CREATOR` only | Post-by-post engagement metrics with sorting (`engagement`, `likes`, etc.) |
+| `GET` | `/api/notifications` | Authenticated | Paginated notification list (`page`, `limit`, `unreadOnly`) |
+| `GET` | `/api/notifications/unread-count` | Authenticated | Real-time unread notification count |
+| `PATCH` | `/api/notifications/:id/read` | Authenticated (Owner) | Marks a specific notification as read with timestamp |
+| `PATCH` | `/api/notifications/read-all` | Authenticated | Marks all unread notifications for caller as read |
+
+---
+
+## 9. Academic Defense Q&A Highlights
 
 1. **Why not store media files directly in PostgreSQL using BYTEA?**
    Storing binary blobs in relational tables degrades database performance, bloats backups, and prevents edge CDN caching. ArtVest stores references and rich metadata in PostgreSQL (`PostMedia`), while delegating asset delivery to a dedicated CDN provider (Cloudinary) or filesystem abstraction.
 
-2. **How does ArtVest prevent client-side privilege escalation?**
-   Endpoints strictly derive identity from the verified JWT in the `HttpOnly` cookie via `req.user.id`. Client-supplied user IDs in request bodies are ignored. All creator mutation endpoints require `requireRole(UserRole.CREATOR)` and verify `post.authorId === req.user.id`. Similarly, comment and collaboration updates verify record ownership (`comment.userId === req.user.id`, `inquiry.senderId === req.user.id` or `inquiry.recipientId === req.user.id`).
+2. **How does ArtVest prevent client-side privilege escalation in Creator Studio and Notifications?**
+   Endpoints strictly derive identity from the verified JWT in the `HttpOnly` cookie via `req.user.id`. Creator Studio endpoints enforce `requireRole(UserRole.CREATOR)` and query records strictly where `authorId === req.user.id` or `recipientId === req.user.id`. Notification mutations enforce record ownership before updating `isRead`. Client-supplied IDs in query strings or payloads are never trusted for authorization.
 
 3. **How are duplicate likes, saves, and follows prevented under high concurrency?**
    Application-layer checks alone suffer from race conditions (TOCTOU). ArtVest enforces relational integrity via composite unique constraints (`@@unique([userId, postId])` for `Like` and `Save`, and `@@unique([followerId, followingId])` for `Follow`). Any concurrent duplicate inserts are rejected deterministically by the database engine.
 
-4. **How does ArtVest prevent the N+1 query problem when loading the feed with social metrics?**
-   Instead of querying likes, saves, and comments separately for each post in a loop, ArtVest leverages Prisma's relational count aggregations (`_count: { select: { likes: true, comments: true, saves: true } }`) in the primary query. Viewer interaction states (`likedByMe`, `savedByMe`, `followingCreator`) are resolved using batched queries keyed by `postId in [...]` and `authorId in [...]`, executing in constant $O(1)$ database trips regardless of page size.
+4. **How does ArtVest prevent the N+1 query problem when aggregating Studio analytics?**
+   Rather than loading full record graphs into JavaScript memory or issuing sequential queries in a loop, ArtVest leverages Prisma's database-level parallel aggregation functions (`prisma.post.count`, `prisma.like.count`, `prisma.follow.count`, `prisma.collaborationInquiry.count`) run concurrently via `Promise.all`. Zero unbounded entity tables are loaded into memory.
 
-5. **Why structured Collaboration Inquiries rather than free-form Instant Messaging / WebSockets?**
-   Direct unmoderated chat invites spam, harassment, and off-topic conversations before professional alignment is established. Structured inquiries require formal intent, an optional creative work reference, and explicit acceptance/decline by the creator, keeping the platform focused on serious creative partnerships while avoiding complex WebSocket infrastructure prematurely.
+5. **Why an in-app database notification system rather than WebSockets, Push, or Email?**
+   For this development phase and project scope, in-process domain event triggers and database storage provide high auditability, testability, and persistence without introducing fragile background daemons, third-party SMTP quotas, or persistent WebSocket socket management. Polling and page revalidation deliver an instant, responsive user experience while keeping the architecture maintainable and defensible.
 
-6. **How is ArtVest's talent discovery different from Instagram's search or an AI recommendation engine?**
-   Instagram's search is keyword/hashtag-based and passive-consumption-driven, optimized for watch time. ArtVest is a structured talent discovery platform where queries operate over normalized domain attributes (Discipline, Craft Role, Location, Experience Tier, Availability Status, and Role-Specific Metadata). Ranking is transparent, explainable, and deterministic, ensuring that a search for *"Classical Singer in Jaipur"* objectively surfaces qualified creators without algorithmic bias or unexplainable black-box models.
+6. **How does ArtVest prevent notification spam and self-notifications?**
+   `NotificationService.createNotification` enforces a strict guard: if `actorId === recipientId`, execution halts immediately with zero database writes. Additionally, duplicate actions within 60 seconds targeting the same actor, recipient, type, and resource return the existing notification rather than creating redundant database rows.
 
-7. **How does ArtVest handle multi-token keyword searches without external search infrastructure like Elasticsearch?**
-   ArtVest tokenizes search queries into meaningful craft terms and executes parameterized, case-insensitive substring queries across candidate profile attributes using PostgreSQL composite indexes (`@@index([isPublic, primaryCategoryId])`, `@@index([isPublic, profileCompletionScore])`). Candidates matching all tokens are ranked with multi-hit score bonuses in $O(N)$ memory time, keeping the architecture lightweight, self-contained, and performant for the project scope.
+7. **How does ArtVest calculate Creator Studio engagement and top-performing works?**
+   Engagement is calculated deterministically as $\text{Engagement Score} = \text{Likes} + \text{Comments} + \text{Saves}$. Top performing showcases are ordered deterministically by `engagementScore DESC`, then `publishedAt DESC`, with `id ASC` as an absolute tie-breaker, completely avoiding unexplainable "black-box" machine learning algorithms.
 
 

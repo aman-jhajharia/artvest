@@ -510,7 +510,93 @@ The frontend Explore experience (`/app/explore` and `/explore`) mirrors all quer
 
 ---
 
-## 9. Milestone Progress & Roadmap
+## 9. Phase 6 Architecture: Creator Studio & Notifications
+
+Phase 6 implements a dual-domain operational layer for verified creators and active ecosystem participants:
+1. **Creator Studio (`/app/studio`)**: Private analytics dashboard and content performance suite for authenticated `CREATOR` accounts.
+2. **In-App Notification Center (`/app/notifications`)**: Decoupled, event-driven in-app alert and read-state system tracking social interactions and collaboration workflows.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        DOMAIN INTERACTION LAYER                        │
+│   (Like, Comment, Follow, Collaboration Inquiry, Status Mutation)     │
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │
+                                   ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                       NOTIFICATION EVENT HOOKS                         │
+│  - Self-notification suppression (actorId !== recipientId)            │
+│  - 60s rapid-action duplicate debouncing                               │
+│  - Derive recipientId strictly from entity relations                   │
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │
+                                   ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                         NOTIFICATION SERVICE                           │
+│  - POST_LIKED                    - COLLABORATION_INQUIRY_CREATED       │
+│  - COMMENT_CREATED               - COLLABORATION_ACCEPTED              │
+│  - CREATOR_FOLLOWED              - COLLABORATION_DECLINED              │
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │
+                                   ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                      POSTGRESQL STORAGE & INDEXES                      │
+│  - Notification [recipientId, isRead] index                            │
+│  - Notification [recipientId, createdAt] index                         │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.1 Creator Studio & Performance Analytics
+- **Authorization & Isolation**: Server-side role guard `requireRole(UserRole.CREATOR)` and strict derivation of creator identity from session cookie (`req.user.id`). Never trusts client-supplied query parameters or IDs.
+- **Genuine Aggregated Metrics (No Hardcoded Counters)**:
+  - Showcase breakdown: Total posts, published posts, drafts, and featured spotlight works.
+  - Social reach: Total likes, total comments, and total bookmarks/saves across all creator showcases.
+  - Total Engagement: `likes + comments + saves` (deterministic engagement total).
+  - Creative audience: Total followers and recent follower timeline.
+  - Collaboration Pipeline: Total inquiries, pending review, accepted, declined, and transparent **Acceptance Rate** formula:
+    $$\text{Acceptance Rate} = \frac{\text{Accepted Inquiries}}{\text{Accepted} + \text{Declined}} \times 100$$
+    (Safely handles zero denominator to output `0%` rather than `NaN`).
+  - Verified Profile Views: Real database view count from `CreatorProfile.viewCount`, updated exclusively on authenticated public views.
+- **Deterministic Top Posts Ranking**:
+  $$\text{engagementScore} = \text{likes} + \text{comments} + \text{saves}$$
+  Ranked deterministically with stable tie-breaking:
+  1. `engagementScore DESC`
+  2. `publishedAt DESC`
+  3. `id ASC`
+- **Post Performance Endpoint (`GET /api/studio/posts`)**: Supports deterministic sorting by `engagement`, `likes`, `comments`, `saves`, `views`, and `newest` with cursor/page pagination.
+
+### 9.2 In-App Notification System
+- **Event-Driven Service Abstraction**: Domain operations in `InteractionService` trigger notifications upon confirmed database mutation:
+  - `POST_LIKED`: Triggered when an enthusiast likes a published showcase (bypassed if author likes own post).
+  - `COMMENT_CREATED`: Triggered when a new comment is posted on a showcase.
+  - `CREATOR_FOLLOWED`: Triggered when a user follows a creator's profile.
+  - `COLLABORATION_INQUIRY_CREATED`: Triggered when a collaboration inquiry is sent to a creator.
+  - `COLLABORATION_ACCEPTED`: Triggered when the creator accepts a collaboration inquiry.
+  - `COLLABORATION_DECLINED`: Triggered when the creator declines an inquiry.
+- **Strict Business & Security Rules**:
+  1. **Zero Self-Notifications**: If `actorId === recipientId`, notification creation is aborted immediately.
+  2. **Duplicate Debouncing**: Actions within a 60-second window matching the same `actorId`, `recipientId`, `type`, and `resourceId` return the existing notification without inserting duplicates.
+  3. **Ownership Verification**: Users cannot read, mark, or view another user's notifications (`403 FORBIDDEN_NOTIFICATION_ACCESS`).
+  4. **Unread Counter**: Calculated in real-time with `prisma.notification.count({ where: { recipientId, isRead: false } })`.
+- **Targeted Database Indexing**:
+  - `Notification(recipientId, isRead)` — speeds up unread-only queries and badge counts.
+  - `Notification(recipientId, createdAt)` — speeds up chronological notification feed retrieval.
+
+### 9.3 API Surface
+
+#### Creator Studio Endpoints (CREATOR Only)
+- `GET /api/studio/overview`: Returns aggregated overview statistics, creator profile summary, collaboration funnel, and top 5 ranked showcases.
+- `GET /api/studio/posts`: Returns paginated creator post performance with engagement scores and customizable sorting.
+
+#### Notification Endpoints (Authenticated Users)
+- `GET /api/notifications`: Retrieves paginated notification list (`page`, `limit`, `unreadOnly`).
+- `GET /api/notifications/unread-count`: Returns real-time `{ unreadCount: number }`.
+- `PATCH /api/notifications/:id/read`: Marks an individual notification as read and records `readAt` timestamp.
+- `PATCH /api/notifications/read-all`: Marks all unread notifications as read for the calling user.
+
+---
+
+## 10. Milestone Progress & Roadmap
 
 | Phase | Milestone | Scope / Deliverables | Status |
 |---|---|---|---|
@@ -520,7 +606,7 @@ The frontend Explore experience (`/app/explore` and `/explore`) mirrors all quer
 | **Phase 3** | Posts & Multimedia | Multimedia content engine (IMAGE, VIDEO, AUDIO, TEXT, SHOWCASE), Cloudinary upload abstraction, Creator Studio (`/app/studio`), live chronological feed (`/app`), waveform audio player, 5-step showcase creator flow, Tests (43/43) | **COMPLETED** |
 | **Phase 4** | Social Graph & Interaction | Relational social graph: Post appreciation likes, Saved showcases/bookmarks, Nested comment discussions & replies, Creator follow graph, Structured collaboration inquiries & workflow, Studio inquiries management, Tests (83/83) | **COMPLETED** |
 | **Phase 5** | Explore & Structured Discovery | Multi-attribute structured discovery (Category, Skill, Location, Experience, Availability, Proficiency), multi-token keyword search ("Classical Singer in Jaipur"), explainable deterministic relevance ranking, URL state sync, responsive sidebar/drawer, Tests (108/108) | **COMPLETED** |
-| **Phase 6** | Studio & Notifications | Creator studio analytics, event-driven notification alerts | Upcoming |
+| **Phase 6** | Studio & Notifications | Creator studio analytics, post performance metrics, event-driven in-app notifications, unread badge counter, read/unread states, Tests (131/131) | **COMPLETED** |
 | **Phase 7** | Midterm Stabilization | End-to-end integration, academic viva prep, demo data seeding | **MIDTERM VIVA** |
 | **Phase 8** | Creative Projects | Project creation, creative briefs, role definitions, milestone tracking | Upcoming |
 | **Phase 9** | Multidisciplinary Teams | Team invitations, role fulfillment, collaborative project workspace | Upcoming |
@@ -528,5 +614,6 @@ The frontend Explore experience (`/app/explore` and `/explore`) mirrors all quer
 | **Phase 11** | Community Backing | Project crowdfunding, community micro-backing, reward tiers | Upcoming |
 | **Phase 12** | Analytics & Recommendations | Platform analytics, discovery heuristics, engagement insights | Upcoming |
 | **Phase 13** | Final Polish & Viva Defense | Performance tuning, security audit, deployment, comprehensive thesis documentation | **END-TERM VIVA** |
+
 
 
