@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
+import path from 'path';
 import { config } from './config/index.js';
 import { apiRoutes } from './routes/index.js';
 import { notFoundMiddleware } from './middleware/notFound.middleware.js';
@@ -11,8 +12,15 @@ import { errorMiddleware } from './middleware/error.middleware.js';
 export function createApp(): Express {
   const app = express();
 
-  // Security headers
-  app.use(helmet());
+  // Security headers with media resource policy allowing cross-origin media playback
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })
+  );
+
+  // Serve local media uploads statically for fallback/offline academic demonstration
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
   // Cookie parsing for HttpOnly session cookies
   app.use(cookieParser());

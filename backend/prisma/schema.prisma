@@ -44,6 +44,12 @@ enum PostType {
   SHOWCASE
 }
 
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 enum MediaType {
   IMAGE
   VIDEO
@@ -155,6 +161,7 @@ model CreatorProfile {
   // Relations
   user                    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   creatorSkills           CreatorSkill[]
+  posts                   Post[]
 
   @@index([location])
   @@index([city])
@@ -195,6 +202,7 @@ model Skill {
 
   category      Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   creatorSkills CreatorSkill[]
+  posts         Post[]
 
   @@index([categoryId])
   @@index([slug])
@@ -222,30 +230,39 @@ model CreatorSkill {
 // ==========================================
 
 model Post {
-  id          String      @id @default(cuid())
-  authorId    String
-  title       String?
-  caption     String
-  postType    PostType    @default(IMAGE)
-  categoryId  String?
-  tags        String[]    @default([])
-  isFeatured  Boolean     @default(false)
-  viewCount   Int         @default(0)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id                String             @id @default(cuid())
+  authorId          String
+  creatorProfileId  String?
+  title             String?
+  caption           String
+  description       String?
+  postType          PostType           @default(IMAGE)
+  status            PostStatus         @default(DRAFT)
+  categoryId        String?
+  tags              String[]           @default([])
+  isFeatured        Boolean            @default(false)
+  viewCount         Int                @default(0)
+  publishedAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
-  author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  media       PostMedia[]
-  comments    Comment[]
-  likes       Like[]
-  saves       Save[]
-  reports     Report[]
+  author            User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  creatorProfile    CreatorProfile?    @relation(fields: [creatorProfileId], references: [id], onDelete: SetNull)
+  category          Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  skills            Skill[]
+  media             PostMedia[]
+  comments          Comment[]
+  likes             Like[]
+  saves             Save[]
+  reports           Report[]
 
   @@index([authorId])
+  @@index([creatorProfileId])
   @@index([categoryId])
   @@index([postType])
+  @@index([status])
   @@index([createdAt])
+  @@index([publishedAt])
 }
 
 model PostMedia {
@@ -257,6 +274,10 @@ model PostMedia {
   aspectRatio  String?   // e.g. "16:9", "1:1", "4:5"
   duration     Float?    // Seconds for audio/video
   orderIndex   Int       @default(0)
+  mimeType     String?
+  fileSize     Int?
+  width        Int?
+  height       Int?
   meta         Json?     // Waveform, dimensions, size, etc.
   createdAt    DateTime  @default(now())
 
