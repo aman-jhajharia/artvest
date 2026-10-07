@@ -1,11 +1,13 @@
 import { ApiResponse } from '../types';
+import { API_BASE_URL } from '@/config/api';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+export { API_BASE_URL };
 
 export class ApiClient {
   private static async request<T>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T>> {
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const response = await fetch(`${API_BASE_URL}${cleanEndpoint}`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',

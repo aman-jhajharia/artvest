@@ -1,6 +1,5 @@
 import { ApiResponse, User } from '@/types';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import { API_BASE_URL } from '@/config/api';
 
 export class AuthService {
   public static async googleLogin(credential: string): Promise<ApiResponse<{ user: User; isNewUser: boolean }>> {

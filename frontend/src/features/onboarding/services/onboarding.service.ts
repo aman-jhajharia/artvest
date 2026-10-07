@@ -1,6 +1,5 @@
 import { ApiResponse, Category } from '@/types';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import { API_BASE_URL } from '@/config/api';
 
 export interface SkillItem {
   id: string;

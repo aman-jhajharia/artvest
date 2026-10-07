@@ -4,8 +4,7 @@ import {
   NotificationPagination,
   UnreadCountResponse,
 } from '../types/notification.types';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import { API_BASE_URL } from '@/config/api';
 
 export interface GetNotificationsApiResponse extends ApiResponse<NotificationItem[]> {
   pagination?: NotificationPagination;
@@ -14,7 +13,8 @@ export interface GetNotificationsApiResponse extends ApiResponse<NotificationIte
 export class NotificationApiService {
   private static async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const response = await fetch(`${API_BASE_URL}${cleanEndpoint}`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
