@@ -12,13 +12,14 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "tsx prisma/seed.ts",
     "db:local": "tsx scripts/start-local-db.ts",
-    "test": "tsx --test --test-concurrency=1 tests/auth-onboarding.test.ts tests/creator-profile.test.ts tests/multimedia-posts.test.ts tests/social-interactions.test.ts tests/explore.test.ts tests/studio-notifications.test.ts",
+    "test": "tsx --test --test-concurrency=1 tests/auth-onboarding.test.ts tests/creator-profile.test.ts tests/multimedia-posts.test.ts tests/social-interactions.test.ts tests/explore.test.ts tests/studio-notifications.test.ts tests/security-audit.test.ts",
     "test:auth": "tsx --test tests/auth-onboarding.test.ts",
     "test:creator": "tsx --test tests/creator-profile.test.ts",
     "test:posts": "tsx --test tests/multimedia-posts.test.ts",
     "test:social": "tsx --test tests/social-interactions.test.ts",
     "test:explore": "tsx --test tests/explore.test.ts",
-    "test:phase6": "tsx --test tests/studio-notifications.test.ts"
+    "test:phase6": "tsx --test tests/studio-notifications.test.ts",
+    "test:security": "tsx --test tests/security-audit.test.ts"
   },
   "keywords": [
     "artvest",
