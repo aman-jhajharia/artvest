@@ -116,10 +116,38 @@ export default function LoginPage() {
     const mockCredential = `mock_test_credential:${JSON.stringify({
       googleId: `google_id_${timestamp}`,
       email: mockEmail,
-      name: roleIntent === 'CREATOR' ? 'Aanya Sharma' : 'Dev Community Member',
+      name: roleIntent === 'CREATOR' ? 'New Creative Creator' : 'New Community Member',
       avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
     })}`;
 
+    handleCredentialResponse(mockCredential);
+  };
+
+  // Seeded Demo Accounts for Viva Evaluation
+  const handleSeedAccountLogin = (accountKey: 'aanya' | 'kabir' | 'rohan') => {
+    const accounts = {
+      aanya: {
+        googleId: 'google_demo_aanya_101',
+        email: 'demo.aanya@artvest.local',
+        name: 'Aanya Sharma',
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300',
+      },
+      kabir: {
+        googleId: 'google_demo_kabir_102',
+        email: 'demo.kabir@artvest.local',
+        name: 'Kabir Verma',
+        avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300',
+      },
+      rohan: {
+        googleId: 'google_demo_rohan_201',
+        email: 'demo.rohan@artvest.local',
+        name: 'Rohan Sen',
+        avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300',
+      },
+    };
+
+    const target = accounts[accountKey];
+    const mockCredential = `mock_test_credential:${JSON.stringify(target)}`;
     handleCredentialResponse(mockCredential);
   };
 
@@ -206,35 +234,88 @@ export default function LoginPage() {
             </button>
           </div>
 
-          {/* Quick Development Test Sign-in */}
-          <div className="pt-4 border-t border-white/10">
-            <div className="flex items-center justify-between mb-2">
+          {/* Pre-Populated Seeded Accounts for Evaluation & Viva */}
+          <div className="pt-4 border-t border-white/10 space-y-3">
+            <div className="flex items-center justify-between">
               <span className="text-[11px] font-mono text-gray-400 uppercase tracking-wider">
-                Simulated Test Credentials
+                Seeded Demo Accounts (Viva Evaluation)
               </span>
               <span className="text-[10px] text-amber-400 font-semibold bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
-                Dev Mode
+                1-Click Demo
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+
+            <div className="space-y-1.5">
               <button
                 type="button"
                 disabled={loading}
-                onClick={() => handleDevGoogleLogin('CREATOR')}
-                className="py-2 px-3 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold border border-amber-500/30 transition-all text-left flex items-center justify-between"
+                onClick={() => handleSeedAccountLogin('aanya')}
+                className="w-full py-2 px-3 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold border border-amber-500/30 transition-all text-left flex items-center justify-between group"
               >
-                <span>Test Creator Sign-In</span>
-                <Sparkle className="w-3 h-3 text-amber-400" />
+                <div>
+                  <div className="font-bold flex items-center gap-1.5">
+                    <span>Aanya Sharma</span>
+                    <span className="text-[10px] text-amber-400 bg-amber-400/20 px-1.5 py-0.2 rounded">CREATOR</span>
+                  </div>
+                  <div className="text-[10px] text-gray-400 font-normal">Hindustani Vocalist (Jaipur) • Studio Analytics & Audio Showcases</div>
+                </div>
+                <Sparkle className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
               </button>
+
               <button
                 type="button"
                 disabled={loading}
-                onClick={() => handleDevGoogleLogin('USER')}
-                className="py-2 px-3 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-xs font-semibold border border-indigo-500/30 transition-all text-left flex items-center justify-between"
+                onClick={() => handleSeedAccountLogin('kabir')}
+                className="w-full py-2 px-3 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold border border-amber-500/30 transition-all text-left flex items-center justify-between group"
               >
-                <span>Test Member Sign-In</span>
-                <Sparkle className="w-3 h-3 text-indigo-400" />
+                <div>
+                  <div className="font-bold flex items-center gap-1.5">
+                    <span>Kabir Verma</span>
+                    <span className="text-[10px] text-amber-400 bg-amber-400/20 px-1.5 py-0.2 rounded">CREATOR</span>
+                  </div>
+                  <div className="text-[10px] text-gray-400 font-normal">Documentary Cinematographer (Mumbai) • 4K Video Showcases</div>
+                </div>
+                <Sparkle className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
               </button>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleSeedAccountLogin('rohan')}
+                className="w-full py-2 px-3 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-xs font-semibold border border-indigo-500/30 transition-all text-left flex items-center justify-between group"
+              >
+                <div>
+                  <div className="font-bold flex items-center gap-1.5">
+                    <span>Rohan Sen</span>
+                    <span className="text-[10px] text-indigo-400 bg-indigo-400/20 px-1.5 py-0.2 rounded">USER</span>
+                  </div>
+                  <div className="text-[10px] text-gray-400 font-normal">Sound Enthusiast • Dispatches Inquiries, Follows & Bookmarks</div>
+                </div>
+                <Sparkle className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] text-gray-400">
+              <span className="font-mono text-[10px] uppercase">New Onboarding Test:</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleDevGoogleLogin('CREATOR')}
+                  className="text-[10px] text-gray-300 hover:text-amber-300 underline"
+                >
+                  New Creator Flow
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleDevGoogleLogin('USER')}
+                  className="text-[10px] text-gray-300 hover:text-indigo-300 underline"
+                >
+                  New Member Flow
+                </button>
+              </div>
             </div>
           </div>
 

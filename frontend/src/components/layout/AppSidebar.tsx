@@ -108,13 +108,13 @@ export const AppSidebar: React.FC = () => {
 
         {/* Create Showcase CTA */}
         <div className="mt-6 px-1">
-          <button
-            type="button"
-            className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-amber-500/20 hover:brightness-105 transition-all"
+          <Link
+            href="/app/studio?action=create"
+            className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-amber-500/20 hover:brightness-105 transition-all text-center"
           >
             <PlusCircle className="w-4 h-4" />
             Post Showcase
-          </button>
+          </Link>
         </div>
 
         {/* Phase 2 Feature: Creative Projects */}

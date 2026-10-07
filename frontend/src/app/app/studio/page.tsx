@@ -127,6 +127,16 @@ export default function StudioPage() {
     }
   }, [activeTab, loadPerformance, loadPosts]);
 
+  // Check URL query parameters for create trigger
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('action') === 'create' || params.get('create') === 'true') {
+        setIsModalOpen(true);
+      }
+    }
+  }, []);
+
   const handlePublish = async (postId: string) => {
     try {
       const res = await PostApiService.publishPost(postId);
@@ -216,7 +226,7 @@ export default function StudioPage() {
           inquiry pipelines. Complete your creator onboarding profile to unlock full access.
         </p>
         <Link
-          href="/app/onboarding"
+          href="/onboarding"
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black text-xs font-bold transition-all shadow-lg shadow-amber-500/20"
         >
           <Sparkles className="w-4 h-4" />
