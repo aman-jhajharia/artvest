@@ -237,16 +237,72 @@ Provider API secrets remain quarantined on the backend and are never sent to the
 
 ---
 
-## 6. Milestone Progress & Roadmap
+---
+
+## 6. Phase 3 Architecture: Multimedia Showcase & Content Engine
+
+### 6.1 Content Processing & Retrieval Dataflow
+```
+Browser
+   ↓ Next.js (App Router, Turbopack)
+Next.js Client Components (PostCard, MediaGallery, AudioPreview, VideoPreview)
+   ↓ Fetch API with credentials: 'include' (HttpOnly Cookie)
+Express REST API Service (Node.js 20, TypeScript, Port 5000)
+   ↓ auth.middleware (derive req.user.id, requireRole CREATOR)
+Post Service (post.service.ts) & Validators (post.validator.ts)
+   ↓ Type-safe Prisma Client (v6)
+PostgreSQL Database (Tables: Post, PostMedia, CreatorProfile, Skill)
+```
+
+### 6.2 Secure Provider-Agnostic Media Upload Flow
+```
+Browser (Upload File)
+   ↓ POST /api/media/upload (with multipart buffer)
+Express Media Controller & Multer (In-Memory Buffer)
+   ↓ MediaStorageService.validateMediaFile (MIME type check + byte size limits)
+Cloudinary Media CDN (or Local Disk Fallback in dev/tests)
+   ↓ Secure upload with poster generation & waveform metadata
+Cloudinary CDN URL + Dimensions + Waveform Array
+   ↓ MediaStorageService.uploadMedia
+PostMedia Record created in PostgreSQL via Prisma
+   ↓ Linked to author's Post (orderIndex, aspectRatio, meta)
+Post Published to Showcase Feed & Portfolio
+```
+
+### 6.3 Post Lifecycle State Machine
+```
+                       +-----------------------+
+                       |        DRAFT          |
+                       |  (Author Studio Only) |
+                       +-----------------------+
+                                   |
+                validatePostForPublishing (completeness check)
+                                   |
+                                   v
+                       +-----------------------+
+                       |       PUBLISHED       |
+                       |  (Feed & Portfolio)   |
+                       +-----------------------+
+                                   |
+                                   v
+                       +-----------------------+
+                       |       ARCHIVED        |
+                       | (Hidden from Public)  |
+                       +-----------------------+
+```
+
+---
+
+## 7. Milestone Progress & Roadmap
 
 | Phase | Milestone | Scope / Deliverables | Status |
 |---|---|---|---|
 | **Phase 0** | Architecture Foundation | Monorepo structure, TypeScript, Prisma Schema, Health API, Landing shell | **COMPLETED** |
 | **Phase 1** | Auth & Onboarding | Google OAuth verification, HttpOnly sessions, RBAC, Onboarding UI, Taxonomy API, Tests (13/13) | **COMPLETED** |
 | **Phase 2** | Creator Identity & Skills | Profile editor, dynamic skills management, proficiencies, role metadata validation, completion scoring, public creator discovery, portfolio foundation, Tests (27/27) | **COMPLETED** |
-| **Phase 3** | Posts & Multimedia | Upload service (Cloudinary), Audio/Video/Image showcase posts | Upcoming |
-| **Phase 4** | Feed & Social Graph | Chronological feed, Like, Comment, Save, Follow | Upcoming |
-| **Phase 5** | Explore & Discovery | Multi-criteria search (Category, Role, City, Availability) | Upcoming |
+| **Phase 3** | Posts & Multimedia | Multimedia content engine (IMAGE, VIDEO, AUDIO, TEXT, SHOWCASE), Cloudinary upload abstraction, Creator Studio (`/app/studio`), live chronological feed (`/app`), waveform audio player, 5-step showcase creator flow, Tests (43/43) | **COMPLETED** |
+| **Phase 4** | Social Graph & Backing | Chronological feed social interactions: Likes, Comments, Saves, Follows, Collaborator Inquiries | Upcoming |
+| **Phase 5** | Explore & Discovery | Multi-criteria structured discovery (Category, Role, City, Availability) | Upcoming |
 | **Phase 6** | Studio & Notifications | Creator studio metrics, notification alerts | Upcoming |
 | **Phase 7** | Midterm Stabilization | End-to-end integration, academic viva prep, demo data seeding | **MIDTERM VIVA** |
 | **Phase 8-13**| Community Projects | Multidisciplinary teams, simulated virtual credit wallet, community backing | **END-TERM VIVA**|

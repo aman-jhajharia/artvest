@@ -21,9 +21,9 @@ Traditional platforms treat every creator identically with a generic bio and pho
 ### Academic Development Milestones
 - **Phase 0**: Architecture & Foundation (Monorepo, Next.js 16, Express, Prisma, PostgreSQL).
 - **Phase 1**: Authentication & Onboarding (Google OAuth, HttpOnly JWT, RBAC, 5-step onboarding, deterministic score).
-- **Phase 2 (Current Milestone)**: **Creator Identity, Profiles & Portfolio Foundation** (Live profile viewing & editing, dynamic skill management with proficiencies, discipline-specific role metadata validation, explainable profile strength scoring, public profile discovery `/creator/:creatorId`, privacy controls, portfolio foundation).
-- **Phase 3 (Upcoming)**: Multimedia Posts & Showcase Feed.
-- **Phase 4 (Upcoming)**: Social Graph & Collaborator Inquiries.
+- **Phase 2**: Creator Identity, Profiles & Portfolio Foundation (Live profile viewing & editing, dynamic skill management with proficiencies, discipline-specific role metadata validation, explainable profile strength scoring, public profile discovery `/creator/:creatorId`, privacy controls).
+- **Phase 3 (Current Milestone - Completed)**: **Multimedia Portfolio & Showcase Posts** (Extensible media model: Image, Video, Audio, Text, Showcase; Cloudinary/local media abstraction; 5-step showcase creator flow; Creator Studio `/app/studio` with Drafts, Published, and Featured work; interactive waveform audio player; live chronological showcase feed `/app`; tests 43/43).
+- **Phase 4 (Upcoming)**: Social Graph & Community Backing (Likes, Comments, Bookmarks, Follows, Collaborator Inquiries).
 - **Phase 5 (End-Term Milestone)**: Creative Projects, Multidisciplinary Teams & Virtual Credit Backing Simulation.
 
 ---
@@ -159,19 +159,88 @@ npm run dev:frontend  # Next.js on http://localhost:3000
 ```bash
 npm test
 ```
-The test suite executes 27/27 automated integration tests:
+The test suite executes 43/43 automated integration tests (100% passing):
 - **Phase 1 (13 tests)**: Google OAuth verification, session cookie issuance, re-onboarding prevention, RBAC elevation blocking.
 - **Phase 2 (14 tests)**: Creator profile retrieval, partial PATCH updates, validation rejection, 403 enforcement on non-creators, dynamic skill addition, duplicate skill conflict (409), skill deletion, session scoping isolation, roleAttributes discipline validation, deterministic profile completion, dynamic score recalculation, public profile visibility & privacy (`isPublic`), and user/creator separation.
+- **Phase 3 (16 tests)**: Showcase draft creation, studio retrieval, draft modification, cross-creator modification isolation (403), draft deletion, draft-to-published lifecycle transition, incomplete post publishing rejection (400), draft privacy from public feed, published feed appearance, creator portfolio integration, featured ordering priority, standard USER restriction (403), unsupported media format rejection (400), file size limit enforcement (400), mutation ownership enforcement, feed pagination.
 
 ---
 
-## 5. Academic Defense Q&A Highlights
+## 5. Phase 3 Architecture: Multimedia Portfolio & Showcase Posts
 
-1. **Why not create separate database tables for every creative profession?**
-   Creating 30+ normalized tables (e.g., `SingerProfile`, `ActorProfile`, `VFXProfile`) introduces schema bloat, high migration risk, and complex polymorphic joins. ArtVest uses a hybrid normalized core (`CreatorProfile` + `CreatorSkill`) with category-aware Zod-validated JSON attributes (`roleAttributes`), ensuring strict type safety and infinite extensibility.
+### 5.1 Post Lifecycle
+```
++-------------+         User Edit / Upload Media         +---------------+
+|    DRAFT    |  ------------------------------------->  |   PUBLISHED   |
++-------------+                                          +---------------+
+       |                                                         |
+       | Author Deletes                                          | Archive / Unpublish
+       v                                                         v
+  [ DELETED ]                                              +---------------+
+                                                           |   ARCHIVED    |
+                                                           +---------------+
+```
+
+- **Drafts**: Only visible to the author in Creator Studio (`GET /api/creator/posts?status=DRAFT`). Never returned in public feed or creator profiles.
+- **Published**: Publicly visible in chronological feed (`GET /api/feed`) and creator portfolio. Validated for required media and fields prior to publication.
+- **Featured**: Flagged showcase works (`isFeatured: true`) displayed in priority spotlight at the top of the creator's portfolio.
+
+### 5.2 Media Storage Architecture
+```
+Browser (Upload Request)
+       ↓
+ArtVest API (/api/media/upload or /api/media/upload-signature)
+       ↓ Authorization & File Validation
+Cloudinary Media CDN (or Local Disk Fallback in dev/tests)
+       ↓ Returns secure_url + metadata
+ArtVest API
+       ↓ Prisma Relational Insert
+PostMedia Record (url, thumbnailUrl, duration, waveform, dimensions)
+       ↓
+Post Association
+```
+
+**Security Principle**: Cloudinary API Secret and storage credentials NEVER touch the browser. Upload signatures and file parsing occur entirely server-side.
+
+### 5.3 File Limits & Supported Media Formats
+
+| Media Type | Allowed MIME Types | File Size Limit | Processing / Metadata |
+|---|---|---|---|
+| **IMAGE** | JPEG, PNG, WebP, GIF | 10 MB | Dimensions (width, height), aspect ratio |
+| **VIDEO** | MP4, WebM, QuickTime (MOV) | 100 MB | Video poster frame thumbnail generation, duration |
+| **AUDIO** | MP3, WAV, FLAC, AAC, OGG | 50 MB | Duration calculation, normalized waveform points array (64 bars) |
+| **TEXT** | Plain / Formatted Text | N/A | Typographic layout for scripts, essays, manifestos |
+| **SHOWCASE** | Mixed Media Collection | Per item limits | Multi-media gallery carousel |
+
+### 5.4 REST API Surface (Posts & Media)
+
+| Method | Endpoint | Authorization | Description |
+|---|---|---|---|
+| `POST` | `/api/posts` | `CREATOR` role | Creates showcase draft or published post; ownership derived from `req.user.id` |
+| `GET` | `/api/posts/:postId` | Public / Optional Auth | Retrieves post; restricts unpublished drafts strictly to author |
+| `PATCH` | `/api/posts/:postId` | `CREATOR` (Author) | Updates metadata, tags, and media associations; enforces 403 on other creators |
+| `DELETE`| `/api/posts/:postId` | `CREATOR` (Author) | Deletes post and cascades associated media records |
+| `POST` | `/api/posts/:postId/publish` | `CREATOR` (Author) | Validates post completeness and transitions `DRAFT` $\rightarrow$ `PUBLISHED` |
+| `POST` | `/api/posts/:postId/feature` | `CREATOR` (Author) | Features showcase work in creator's portfolio spotlight |
+| `DELETE`| `/api/posts/:postId/feature` | `CREATOR` (Author) | Unfeatures showcase work |
+| `GET` | `/api/creator/posts` | `CREATOR` role | Retrieves author's studio posts with filters (`DRAFT`, `PUBLISHED`, `FEATURED`) |
+| `GET` | `/api/creators/:creatorId/posts` | Public / Optional Auth | Retrieves public published showcases for a creator; excludes drafts |
+| `GET` | `/api/feed` | Public / Optional Auth | Chronological showcase feed with category/type filters and pagination |
+| `POST` | `/api/media/upload` | `CREATOR` role | Uploads media file through backend abstraction; validates MIME and file size |
+| `POST` | `/api/media/upload-signature` | `CREATOR` role | Generates signed upload authorization for direct Cloudinary upload |
+
+---
+
+## 6. Academic Defense Q&A Highlights
+
+1. **Why not store media files directly in PostgreSQL using BYTEA?**
+   Storing binary blobs in relational tables degrades database performance, bloats backups, and prevents edge CDN caching. ArtVest stores references and rich metadata in PostgreSQL (`PostMedia`), while delegating asset delivery to a dedicated CDN provider (Cloudinary) or filesystem abstraction.
 
 2. **How does ArtVest prevent client-side privilege escalation?**
-   Endpoints strictly derive identity from the verified JWT in the `HttpOnly` cookie via `req.user.id`. Client-supplied user IDs in request bodies are ignored. All creator endpoints require `requireRole(UserRole.CREATOR)`.
+   Endpoints strictly derive identity from the verified JWT in the `HttpOnly` cookie via `req.user.id`. Client-supplied user IDs in request bodies are ignored. All creator mutation endpoints require `requireRole(UserRole.CREATOR)` and verify `post.authorId === req.user.id`.
 
-3. **How does the skills architecture prevent category mismatch?**
-   When a skill is added or elevated to `isPrimary`, the backend verifies that the skill's category matches the creator's `primaryCategoryId`. Secondary skills are checked against the database taxonomy.
+3. **How does ArtVest ensure incomplete drafts are not published?**
+   The `validatePostForPublishing` validator strictly verifies that an `IMAGE` post has at least one image, a `VIDEO` post has a video file, and an `AUDIO` post has an audio track, alongside a valid title and category, before allowing status transition to `PUBLISHED`.
+
+4. **Why is the Showcase Feed initially chronological rather than algorithmic?**
+   Chronological feeds provide a transparent, deterministic foundation that avoids algorithmic bias and engagement manipulation. Future Phase 4 recommendation engines will build on this solid substrate.
