@@ -1,6 +1,7 @@
 import { prisma } from '../config/database.js';
 import { AppError } from '../utils/apiResponse.js';
-import { PostStatus, InquiryStatus } from '@prisma/client';
+import { PostStatus, InquiryStatus, NotificationType } from '@prisma/client';
+import { NotificationService } from './notification.service.js';
 import {
   CreateCommentInput,
   UpdateCommentInput,
@@ -19,7 +20,7 @@ export class InteractionService {
   public static async likePost(userId: string, postId: string) {
     const post = await prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, authorId: true },
     });
 
     if (!post) {
@@ -44,6 +45,19 @@ export class InteractionService {
       },
       update: {},
     });
+
+    // Notify author if not self-like
+    if (post.authorId !== userId) {
+      await NotificationService.createNotification({
+        recipientId: post.authorId,
+        actorId: userId,
+        type: NotificationType.POST_LIKED,
+        title: 'New Like',
+        message: 'liked your showcase post',
+        resourceId: post.id,
+        resourceType: 'POST',
+      }).catch((err) => console.error('Failed to create like notification', err));
+    }
 
     const count = await prisma.like.count({ where: { postId } });
     return { liked: true, count };
@@ -246,7 +260,7 @@ export class InteractionService {
   public static async createComment(userId: string, postId: string, input: CreateCommentInput) {
     const post = await prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, authorId: true },
     });
 
     if (!post) {
@@ -301,6 +315,19 @@ export class InteractionService {
         },
       },
     });
+
+    // Notify post author if not self-comment
+    if (post.authorId !== userId) {
+      await NotificationService.createNotification({
+        recipientId: post.authorId,
+        actorId: userId,
+        type: NotificationType.COMMENT_CREATED,
+        title: 'New Comment',
+        message: 'commented on your showcase post',
+        resourceId: post.id,
+        resourceType: 'POST',
+      }).catch((err) => console.error('Failed to create comment notification', err));
+    }
 
     return comment;
   }
@@ -492,6 +519,19 @@ export class InteractionService {
     const followersCount = await prisma.follow.count({
       where: { followingId: targetUserId },
     });
+
+    // Notify followed creator
+    if (followerId !== targetUserId) {
+      await NotificationService.createNotification({
+        recipientId: targetUserId,
+        actorId: followerId,
+        type: NotificationType.CREATOR_FOLLOWED,
+        title: 'New Follower',
+        message: 'started following your creative journey',
+        resourceId: followerId,
+        resourceType: 'USER',
+      }).catch((err) => console.error('Failed to create follow notification', err));
+    }
 
     return {
       following: true,
@@ -702,6 +742,19 @@ export class InteractionService {
       },
     });
 
+    // Notify recipient creator
+    if (senderId !== recipientUserId) {
+      await NotificationService.createNotification({
+        recipientId: recipientUserId,
+        actorId: senderId,
+        type: NotificationType.COLLABORATION_INQUIRY_CREATED,
+        title: 'New Collaboration Inquiry',
+        message: 'sent you a collaboration inquiry',
+        resourceId: inquiry.id,
+        resourceType: 'INQUIRY',
+      }).catch((err) => console.error('Failed to create inquiry notification', err));
+    }
+
     return inquiry;
   }
 
@@ -884,6 +937,29 @@ export class InteractionService {
         },
       },
     });
+
+    // Notify inquiry sender of acceptance or decline
+    if (newStatus === InquiryStatus.ACCEPTED) {
+      await NotificationService.createNotification({
+        recipientId: inquiry.senderId,
+        actorId: userId,
+        type: NotificationType.COLLABORATION_ACCEPTED,
+        title: 'Inquiry Accepted',
+        message: 'accepted your collaboration inquiry',
+        resourceId: inquiry.id,
+        resourceType: 'INQUIRY',
+      }).catch((err) => console.error('Failed to create inquiry accept notification', err));
+    } else if (newStatus === InquiryStatus.DECLINED) {
+      await NotificationService.createNotification({
+        recipientId: inquiry.senderId,
+        actorId: userId,
+        type: NotificationType.COLLABORATION_DECLINED,
+        title: 'Inquiry Declined',
+        message: 'declined your collaboration inquiry',
+        resourceId: inquiry.id,
+        resourceType: 'INQUIRY',
+      }).catch((err) => console.error('Failed to create inquiry decline notification', err));
+    }
 
     return updated;
   }
