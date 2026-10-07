@@ -10,6 +10,8 @@ import { mediaRoutes } from './media.routes.js';
 import { commentRoutes } from './comment.routes.js';
 import { collaborationRoutes } from './collaboration.routes.js';
 import { exploreRoutes } from './explore.routes.js';
+import { notificationRoutes } from './notification.routes.js';
+import { studioRoutes } from './studio.routes.js';
 import { TaxonomyController } from '../controllers/taxonomy.controller.js';
 import { CreatorController } from '../controllers/creator.controller.js';
 import { PostController } from '../controllers/post.controller.js';
@@ -30,6 +32,8 @@ router.use('/media', mediaRoutes);
 router.use('/comments', commentRoutes);
 router.use('/collaboration', collaborationRoutes);
 router.use('/explore', exploreRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/studio', studioRoutes);
 
 // Public creator profile and showcase discovery
 router.get('/creators/:creatorId', optionalAuth, CreatorController.getPublicProfile);
