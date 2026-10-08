@@ -242,6 +242,20 @@ export default function OnboardingPage() {
         roleAttributes.technicalCertifications = certificationsInput.split(',').map((s) => s.trim()).filter(Boolean);
       }
 
+      // Canonical Dance metadata mapping
+      if (selectedCategory?.slug === 'dance') {
+        roleAttributes.danceForms = specializationsInput
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        const practiceContextValues = practiceContextInput
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        roleAttributes.performanceType = practiceContextValues.length > 0 ? practiceContextValues[0] : null;
+      }
+
       const res = await OnboardingService.submitCreatorOnboarding({
         stageName: stageName.trim() || undefined,
         headline: headline.trim(),

@@ -33,6 +33,14 @@ export function EditProfileModal({
 }: EditProfileModalProps) {
   const [activeTab, setActiveTab] = useState<'IDENTITY' | 'CRAFT' | 'METADATA' | 'LINKS'>('IDENTITY');
 
+  // Discipline & Craft detection
+  const categorySlug = profile.primaryCategory?.slug;
+  const primarySkillSlug = profile.creatorSkills?.find((s) => s.isPrimary)?.skill?.slug;
+  const isDance =
+    categorySlug === 'dance' ||
+    primarySkillSlug === 'dancer' ||
+    primarySkillSlug === 'choreographer';
+
   // Form State
   const [stageName, setStageName] = useState(profile.stageName || '');
   const [headline, setHeadline] = useState(profile.headline || '');
@@ -53,6 +61,35 @@ export function EditProfileModal({
 
   // Role attributes state (helpers)
   const existingAttrs = (profile.roleAttributes as Record<string, any>) || {};
+
+  // Dance-specific attributes state
+  const [danceFormsInput, setDanceFormsInput] = useState(() => {
+    if (Array.isArray(existingAttrs.danceForms)) {
+      return existingAttrs.danceForms.join(', ');
+    }
+    if (Array.isArray(existingAttrs.specializations)) {
+      return existingAttrs.specializations.join(', ');
+    }
+    return '';
+  });
+
+  const [performanceTypeInput, setPerformanceTypeInput] = useState(() => {
+    if (typeof existingAttrs.performanceType === 'string' && existingAttrs.performanceType.trim()) {
+      return existingAttrs.performanceType.trim();
+    }
+    if (Array.isArray(existingAttrs.practiceContext)) {
+      const firstVal = existingAttrs.practiceContext.find(
+        (s: unknown) => typeof s === 'string' && (s as string).trim()
+      );
+      return firstVal ? String(firstVal).trim() : '';
+    }
+    if (typeof existingAttrs.practiceContext === 'string' && existingAttrs.practiceContext.trim()) {
+      return existingAttrs.practiceContext.trim();
+    }
+    return '';
+  });
+
+  // Music/general attributes state (preserved for non-Dance creators)
   const [genresInput, setGenresInput] = useState(
     Array.isArray(existingAttrs.genres) ? existingAttrs.genres.join(', ') : ''
   );
@@ -82,22 +119,42 @@ export function EditProfileModal({
     setFeedback(null);
 
     // Build role attributes based on discipline inputs
-    const roleAttributesPayload: Record<string, any> = { ...existingAttrs };
-    if (genresInput.trim()) {
-      roleAttributesPayload.genres = genresInput.split(',').map((s: string) => s.trim()).filter(Boolean);
-    }
-    if (languagesInput.trim()) {
-      roleAttributesPayload.languages = languagesInput.split(',').map((s: string) => s.trim()).filter(Boolean);
-    }
-    if (vocalType.trim()) {
-      roleAttributesPayload.vocalType = vocalType.trim();
-    }
-    if (toolsInput.trim()) {
-      roleAttributesPayload.editingTools = toolsInput.split(',').map((s: string) => s.trim()).filter(Boolean);
-      roleAttributesPayload.tools = toolsInput.split(',').map((s: string) => s.trim()).filter(Boolean);
-    }
-    if (equipmentInput.trim()) {
-      roleAttributesPayload.equipment = equipmentInput.split(',').map((s: string) => s.trim()).filter(Boolean);
+    let roleAttributesPayload: Record<string, any>;
+
+    if (isDance) {
+      const parsedDanceForms = danceFormsInput
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      if (parsedDanceForms.length === 0) {
+        setFeedback({ type: 'error', message: 'Add at least one dance form.' });
+        setIsSubmitting(false);
+        return;
+      }
+
+      roleAttributesPayload = {
+        danceForms: parsedDanceForms,
+        ...(performanceTypeInput.trim() ? { performanceType: performanceTypeInput.trim() } : {}),
+      };
+    } else {
+      roleAttributesPayload = { ...existingAttrs };
+      if (genresInput.trim()) {
+        roleAttributesPayload.genres = genresInput.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      if (languagesInput.trim()) {
+        roleAttributesPayload.languages = languagesInput.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      if (vocalType.trim()) {
+        roleAttributesPayload.vocalType = vocalType.trim();
+      }
+      if (toolsInput.trim()) {
+        roleAttributesPayload.editingTools = toolsInput.split(',').map((s: string) => s.trim()).filter(Boolean);
+        roleAttributesPayload.tools = toolsInput.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      if (equipmentInput.trim()) {
+        roleAttributesPayload.equipment = equipmentInput.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
     }
 
     const payload: UpdateCreatorProfilePayload = {
@@ -386,71 +443,114 @@ export function EditProfileModal({
                 Discipline-specific metadata allows ArtVest to match you with matching collaborators and creative teams.
               </p>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1.5">
-                  Genres or Artistic Styles (comma separated)
-                </label>
-                <input
-                  type="text"
-                  value={genresInput}
-                  onChange={(e) => setGenresInput(e.target.value)}
-                  placeholder="e.g. Classical, Fusion, Ambient, Cinematic"
-                  className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
-                />
-              </div>
+              {isDance ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-300 mb-1.5">
+                      Dance Forms & Movement Styles <span className="text-amber-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={danceFormsInput}
+                      onChange={(e) => setDanceFormsInput(e.target.value)}
+                      placeholder="e.g. Hip-Hop, Contemporary, Freestyle, Kathak"
+                      className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Core movement forms and styles in your repertoire (comma separated, at least one required)
+                    </p>
+                    {!danceFormsInput.trim() && (
+                      <p className="text-[11px] text-amber-400/90 mt-1 font-medium">
+                        Add at least one dance form.
+                      </p>
+                    )}
+                  </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1.5">
-                  Spoken or Vocal Languages (comma separated)
-                </label>
-                <input
-                  type="text"
-                  value={languagesInput}
-                  onChange={(e) => setLanguagesInput(e.target.value)}
-                  placeholder="e.g. Hindi, Sanskrit, English"
-                  className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-300 mb-1.5">
-                    Vocal Register / Specialty
-                  </label>
-                  <input
-                    type="text"
-                    value={vocalType}
-                    onChange={(e) => setVocalType(e.target.value)}
-                    placeholder="e.g. Soprano, Baritone"
-                    className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
-                  />
+                  <div>
+                    <label className="block text-xs font-medium text-gray-300 mb-1.5">
+                      Performance Type / Context
+                    </label>
+                    <input
+                      type="text"
+                      value={performanceTypeInput}
+                      onChange={(e) => setPerformanceTypeInput(e.target.value)}
+                      placeholder="e.g. Solo Performance, Stage, Competition, Dance Film"
+                      className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Settings where your movement practice or choreography is presented
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-300 mb-1.5">
-                    Production Tools / DAWs / Software
-                  </label>
-                  <input
-                    type="text"
-                    value={toolsInput}
-                    onChange={(e) => setToolsInput(e.target.value)}
-                    placeholder="e.g. Logic Pro, Ableton, Premiere"
-                    className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-300 mb-1.5">
+                      Genres or Artistic Styles (comma separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={genresInput}
+                      onChange={(e) => setGenresInput(e.target.value)}
+                      placeholder="e.g. Classical, Fusion, Ambient, Cinematic"
+                      className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1.5">
-                  Equipment / Gear / Instruments
-                </label>
-                <input
-                  type="text"
-                  value={equipmentInput}
-                  onChange={(e) => setEquipmentInput(e.target.value)}
-                  placeholder="e.g. Tanpura, Neumann U87, Sony FX3"
-                  className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
-                />
-              </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-300 mb-1.5">
+                      Spoken or Vocal Languages (comma separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={languagesInput}
+                      onChange={(e) => setLanguagesInput(e.target.value)}
+                      placeholder="e.g. Hindi, Sanskrit, English"
+                      className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-300 mb-1.5">
+                        Vocal Register / Specialty
+                      </label>
+                      <input
+                        type="text"
+                        value={vocalType}
+                        onChange={(e) => setVocalType(e.target.value)}
+                        placeholder="e.g. Soprano, Baritone"
+                        className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-300 mb-1.5">
+                        Production Tools / DAWs / Software
+                      </label>
+                      <input
+                        type="text"
+                        value={toolsInput}
+                        onChange={(e) => setToolsInput(e.target.value)}
+                        placeholder="e.g. Logic Pro, Ableton, Premiere"
+                        className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-300 mb-1.5">
+                      Equipment / Gear / Instruments
+                    </label>
+                    <input
+                      type="text"
+                      value={equipmentInput}
+                      onChange={(e) => setEquipmentInput(e.target.value)}
+                      placeholder="e.g. Tanpura, Neumann U87, Sony FX3"
+                      className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           )}
 
