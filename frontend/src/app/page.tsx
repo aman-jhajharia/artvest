@@ -1,10 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
-import { ApiClient } from '@/services/api';
 import {
   Sparkles,
   ArrowRight,
@@ -14,42 +13,15 @@ import {
   Camera,
   Palette,
   Sliders,
-  CheckCircle2,
   Layers,
   Users,
   Compass,
-  Activity,
-  Terminal,
+  Heart,
+  Bookmark,
+  CheckCircle2,
 } from 'lucide-react';
 
 export default function LandingPage() {
-  const [healthStatus, setHealthStatus] = useState<{
-    loaded: boolean;
-    healthy: boolean;
-    version?: string;
-    dbStatus?: string;
-  }>({ loaded: false, healthy: false });
-
-  useEffect(() => {
-    async function checkBackend() {
-      const res = await ApiClient.checkHealth();
-      if (res.success && res.data) {
-        setHealthStatus({
-          loaded: true,
-          healthy: res.data.status === 'healthy' || res.data.status === 'degraded',
-          version: res.data.version,
-          dbStatus: res.data.services.database,
-        });
-      } else {
-        setHealthStatus({
-          loaded: true,
-          healthy: false,
-        });
-      }
-    }
-    checkBackend();
-  }, []);
-
   const sampleSearchQueries = [
     { query: 'Classical Singer in Jaipur', role: 'Vocalist', category: 'Music', location: 'Jaipur' },
     { query: 'Cinematographer + Documentary', role: 'Cinematographer', category: 'Film', location: 'Delhi / Remote' },
@@ -60,6 +32,7 @@ export default function LandingPage() {
   const creativePillars = [
     {
       title: 'Music & Audio',
+      slug: 'music',
       icon: Music,
       color: 'text-pink-400',
       badgeClass: 'glow-badge-music',
@@ -68,6 +41,7 @@ export default function LandingPage() {
     },
     {
       title: 'Film & Screen',
+      slug: 'film-acting',
       icon: Film,
       color: 'text-amber-400',
       badgeClass: 'glow-badge-film',
@@ -76,6 +50,7 @@ export default function LandingPage() {
     },
     {
       title: 'Dance & Motion',
+      slug: 'dance',
       icon: Sparkles,
       color: 'text-purple-400',
       badgeClass: 'glow-badge-dance',
@@ -84,6 +59,7 @@ export default function LandingPage() {
     },
     {
       title: 'Photography & Vision',
+      slug: 'photography-video',
       icon: Camera,
       color: 'text-cyan-400',
       badgeClass: 'glow-badge-photography',
@@ -92,6 +68,7 @@ export default function LandingPage() {
     },
     {
       title: 'Design & Digital Arts',
+      slug: 'design-digital-arts',
       icon: Palette,
       color: 'text-emerald-400',
       badgeClass: 'glow-badge-design',
@@ -100,6 +77,7 @@ export default function LandingPage() {
     },
     {
       title: 'Production & Crew',
+      slug: 'production-support',
       icon: Sliders,
       color: 'text-orange-400',
       badgeClass: 'glow-badge-production',
@@ -108,30 +86,63 @@ export default function LandingPage() {
     },
   ];
 
+  const showcaseHighlights = [
+    {
+      title: 'Hindustani Classical Morning Ragas',
+      creator: 'Aanya Sharma',
+      role: 'Classical Vocalist',
+      location: 'New Delhi',
+      category: 'Music & Audio',
+      thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80',
+      stats: { likes: 38, saves: 19 },
+      badge: 'Vocal Track',
+    },
+    {
+      title: 'Echoes of Old Delhi — 4K Anamorphic Reel',
+      creator: 'Kabir Mehta',
+      role: 'Cinematographer',
+      location: 'Delhi',
+      category: 'Film & Screen',
+      thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800&auto=format&fit=crop&q=80',
+      stats: { likes: 45, saves: 28 },
+      badge: 'Showreel',
+    },
+    {
+      title: 'Nebula Reverie: Contemporary Canvas Series',
+      creator: 'Maya Lin',
+      role: 'Visual Artist',
+      location: 'Mumbai',
+      category: 'Visual Arts',
+      thumbnail: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=800&auto=format&fit=crop&q=80',
+      stats: { likes: 52, saves: 34 },
+      badge: 'Original Work',
+    },
+    {
+      title: 'Cybernetic Temple Environment in UE5',
+      creator: 'Devansh Patel',
+      role: '3D VFX Artist',
+      location: 'Bangalore',
+      category: 'Digital Arts',
+      thumbnail: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+      stats: { likes: 61, saves: 42 },
+      badge: '3D Render',
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-[#090A10] text-gray-100 selection:bg-amber-500 selection:text-black">
       <Navbar />
 
-      {/* Hero Section */}
+      {/* 1. Hero Section */}
       <section className="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
         {/* Ambient Gradient Glows */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-gradient-to-tr from-amber-500/15 via-indigo-600/15 to-pink-500/10 blur-[130px] rounded-full pointer-events-none" />
 
         <div className="max-w-6xl mx-auto relative z-10 text-center">
-          {/* Status Badge */}
-          <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-gray-300 mb-8 backdrop-blur-md">
-            <span className="flex h-2 w-2 relative">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${healthStatus.healthy ? 'bg-emerald-400' : 'bg-amber-400'} opacity-75`} />
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${healthStatus.healthy ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-            </span>
-            <span className="font-medium">
-              Academic Major Project PR1107 • Phase 0 Architecture Initialized
-            </span>
-            {healthStatus.loaded && (
-              <span className="text-[11px] text-gray-400 border-l border-white/10 pl-2">
-                API: {healthStatus.healthy ? 'Online' : 'Offline'}
-              </span>
-            )}
+          {/* Consumer Badge */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-400/10 border border-amber-400/20 text-xs text-amber-300 mb-8 backdrop-blur-md">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span className="font-medium">The Creative Talent &amp; Discovery Ecosystem</span>
           </div>
 
           {/* Main Title & Tagline */}
@@ -144,9 +155,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="mt-6 text-lg sm:text-xl text-gray-400 max-w-3xl mx-auto font-normal leading-relaxed">
-            A structured creative talent ecosystem where artists, performers, and technical crew
-            showcase their genuine capabilities, discover verified collaborators, and build an
-            engaged community without dependence on traditional gatekeepers.
+            A creative talent discovery and showcase platform where creators can present their work, discover other talent, and connect for collaboration.
           </p>
 
           {/* Hero CTAs */}
@@ -187,7 +196,7 @@ export default function LandingPage() {
                   </div>
                 </div>
                 <span className="text-xs font-mono text-amber-400/90 hidden sm:inline">
-                  Service-Layer Filtered
+                  Structured Search
                 </span>
               </div>
 
@@ -215,7 +224,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Creative Pillars Section */}
+      {/* 2. Creative Categories Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 border-t border-white/5">
         <div className="max-w-6xl mx-auto">
           <div className="text-center max-w-2xl mx-auto mb-16">
@@ -226,8 +235,7 @@ export default function LandingPage() {
               Built for Every Creative Craft
             </h3>
             <p className="mt-3 text-sm text-gray-400">
-              Each discipline maintains structured metadata attributes tailored to its unique
-              professional requirements.
+              Each discipline maintains structured attributes tailored to its unique creative and professional requirements.
             </p>
           </div>
 
@@ -235,10 +243,14 @@ export default function LandingPage() {
             {creativePillars.map((pillar, idx) => {
               const Icon = pillar.icon;
               return (
-                <div key={idx} className="glass-card rounded-2xl p-6 flex flex-col justify-between">
+                <Link
+                  key={idx}
+                  href={`/app/explore?category=${pillar.slug}`}
+                  className="glass-card rounded-2xl p-6 flex flex-col justify-between group hover:border-amber-400/30 transition-all duration-300 cursor-pointer"
+                >
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:scale-105 transition-transform">
                         <Icon className={`w-5 h-5 ${pillar.color}`} />
                       </div>
                       <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${pillar.badgeClass}`}>
@@ -246,7 +258,9 @@ export default function LandingPage() {
                       </span>
                     </div>
 
-                    <h4 className="text-lg font-bold text-white mb-2">{pillar.title}</h4>
+                    <h4 className="text-lg font-bold text-white mb-2 group-hover:text-amber-300 transition-colors">
+                      {pillar.title}
+                    </h4>
                     <p className="text-xs text-gray-400 mb-4">{pillar.meta}</p>
 
                     <div className="flex flex-wrap gap-1.5 mb-4">
@@ -261,105 +275,119 @@ export default function LandingPage() {
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-white/5 flex items-center justify-between text-xs text-gray-400">
-                    <span>Role-specific metadata</span>
-                    <span className="text-amber-400 font-medium">Ready in Schema</span>
+                  <div className="pt-4 border-t border-white/5 flex items-center justify-between text-xs text-gray-400 group-hover:text-amber-300 transition-colors">
+                    <span>Explore {pillar.title}</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-amber-400 group-hover:translate-x-1 transition-transform" />
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>
         </div>
       </section>
 
-      {/* Academic Roadmap & Phased Architecture */}
+      {/* 3. Product Benefits: Everything You Need to Discover Creative Talent */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 border-t border-white/5 bg-[#0b0d16]/40">
         <div className="max-w-6xl mx-auto">
           <div className="text-center max-w-2xl mx-auto mb-16">
             <h2 className="text-xs uppercase tracking-widest font-semibold text-indigo-400 mb-2">
-              System Architecture
+              Platform Features
             </h2>
             <h3 className="text-3xl font-extrabold text-white">
-              Two-Phase Academic Development Roadmap
+              Everything You Need to Discover Creative Talent
             </h3>
             <p className="mt-3 text-sm text-gray-400">
-              Clean separation between Midterm Talent Discovery and End-Term Community Backing.
+              ArtVest brings discovery, creative portfolios, and collaboration into one place.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Phase 1 Box */}
-            <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-b from-amber-500/[0.07] to-transparent p-7 relative">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold mb-4">
-                <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
-                PHASE 1 • MIDTERM TARGET
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Benefit Card A: Showcase Your Work */}
+            <div className="glass-card rounded-2xl border border-white/10 p-7 flex flex-col justify-between hover:border-amber-400/30 transition-all duration-300">
+              <div>
+                <div className="w-12 h-12 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center mb-6">
+                  <Palette className="w-6 h-6" />
+                </div>
+                <h4 className="text-xl font-bold text-white mb-2">
+                  Showcase Your Work
+                </h4>
+                <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+                  Build a multimedia portfolio that represents your creative identity.
+                </p>
               </div>
-              <h4 className="text-xl font-bold text-white mb-2">
-                Talent Discovery & Creative Community Platform
-              </h4>
-              <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-                Core user journey: Authentication, structured creator profiles, portfolio uploads,
-                multimedia feed, social graph (follow, like, comment, save), and multi-criteria discovery.
-              </p>
 
-              <div className="space-y-2.5 text-xs text-gray-300">
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  Google OAuth & Role-Based Onboarding
+              <div className="space-y-3 text-xs text-gray-300 pt-4 border-t border-white/5">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Images, video reels &amp; audio with waveforms</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  Role-Specific Creator Metadata & Portfolios
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Role attributes, tools, and technical proficiencies</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  Multimedia Posts (Image, Video, Audio, Text)
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  Structured Search (Category + Skill + Location)
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  Creator Studio & Engagement Aggregation
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Custom portfolio curation with featured showcases</span>
                 </div>
               </div>
             </div>
 
-            {/* Phase 2 Box */}
-            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-7 relative opacity-90">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-gray-300 text-xs font-semibold mb-4">
-                <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                PHASE 2 • END TERM EXTENSION
+            {/* Benefit Card B: Discover the Right Talent */}
+            <div className="glass-card rounded-2xl border border-white/10 p-7 flex flex-col justify-between hover:border-indigo-400/30 transition-all duration-300">
+              <div>
+                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 flex items-center justify-center mb-6">
+                  <Compass className="w-6 h-6" />
+                </div>
+                <h4 className="text-xl font-bold text-white mb-2">
+                  Discover the Right Talent
+                </h4>
+                <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+                  Find creators using categories, skills, location, and creative interests.
+                </p>
               </div>
-              <h4 className="text-xl font-bold text-white mb-2">
-                Community-Backed Creative Projects
-              </h4>
-              <p className="text-xs text-gray-400 mb-6 leading-relaxed">
-                Extends platform with structured project teams, virtual credit wallets (educational simulation
-                - no real money/crypto), and community project funding milestones.
-              </p>
 
-              <div className="space-y-2.5 text-xs text-gray-400">
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                  Project Workspaces & Role Requirements
+              <div className="space-y-3 text-xs text-gray-300 pt-4 border-t border-white/5">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span>Multi-criteria search across creative taxonomy</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                  Virtual Credit Wallet & Transaction Ledger
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span>Filter by location, experience &amp; availability</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                  Community Backing & Funding Progress Tracking
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span>Transparent metrics without algorithmic gatekeeping</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                  Collaboration Requests & Team Formation
+              </div>
+            </div>
+
+            {/* Benefit Card C: Connect & Collaborate */}
+            <div className="glass-card rounded-2xl border border-white/10 p-7 flex flex-col justify-between hover:border-emerald-400/30 transition-all duration-300">
+              <div>
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 flex items-center justify-center mb-6">
+                  <Users className="w-6 h-6" />
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                  Project Analytics & Recommendation Engine
+                <h4 className="text-xl font-bold text-white mb-2">
+                  Connect &amp; Collaborate
+                </h4>
+                <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+                  Discover people and reach out when you find the right creative fit.
+                </p>
+              </div>
+
+              <div className="space-y-3 text-xs text-gray-300 pt-4 border-t border-white/5">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Structured collaboration inquiries with project briefs</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Follow creators &amp; bookmark inspiring work</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>In-app notifications for feedback and responses</span>
                 </div>
               </div>
             </div>
@@ -367,35 +395,120 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Live System Diagnostics Panel */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 border-t border-white/5">
-        <div className="max-w-4xl mx-auto glass-panel rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Terminal className="w-4 h-4 text-amber-400" />
-              <h3 className="text-sm font-semibold text-white">System Foundation Status</h3>
+      {/* 4. Showcase Section: Discover What Creators Are Making */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 border-t border-white/5">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
+            <div>
+              <h2 className="text-xs uppercase tracking-widest font-semibold text-amber-400 mb-2">
+                Creative Showcase
+              </h2>
+              <h3 className="text-3xl font-extrabold text-white">
+                Discover What Creators Are Making
+              </h3>
+              <p className="mt-3 text-sm text-gray-400 max-w-2xl">
+                Explore creative work from artists, designers, filmmakers, musicians, dancers, photographers, and production talent.
+              </p>
             </div>
-            <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
-              <Activity className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Full-Stack Foundation Check</span>
-            </div>
+
+            <Link
+              href="/app/explore"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-amber-400 hover:text-amber-300 transition-colors shrink-0"
+            >
+              <span>Explore All Showcases</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-mono">
-            <div className="p-3 rounded-xl bg-black/40 border border-white/5">
-              <div className="text-gray-400 mb-1">Frontend</div>
-              <div className="text-emerald-400 font-bold">Next.js 16 + React 19 + Tailwind CSS</div>
-            </div>
-            <div className="p-3 rounded-xl bg-black/40 border border-white/5">
-              <div className="text-gray-400 mb-1">Backend REST API</div>
-              <div className={healthStatus.healthy ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
-                {healthStatus.healthy ? 'Express 4.21 + TypeScript' : 'Ready (Port 5000)'}
-              </div>
-            </div>
-            <div className="p-3 rounded-xl bg-black/40 border border-white/5">
-              <div className="text-gray-400 mb-1">Database ORM</div>
-              <div className="text-indigo-400 font-bold">Prisma 6 + PostgreSQL Schemas</div>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {showcaseHighlights.map((item, idx) => (
+              <Link
+                key={idx}
+                href="/app/explore"
+                className="glass-card rounded-2xl overflow-hidden border border-white/10 group hover:border-amber-400/40 transition-all duration-300 flex flex-col justify-between"
+              >
+                <div>
+                  {/* Thumbnail Container */}
+                  <div className="relative aspect-video w-full overflow-hidden bg-black/60">
+                    <img
+                      src={item.thumbnail}
+                      alt={item.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-[10px] font-mono text-gray-200 border border-white/10">
+                      {item.badge}
+                    </div>
+                  </div>
+
+                  {/* Body Content */}
+                  <div className="p-4">
+                    <h4 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors line-clamp-1 mb-1">
+                      {item.title}
+                    </h4>
+                    <p className="text-xs text-gray-400">
+                      {item.creator} • {item.role}
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {item.location}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Footer Metrics */}
+                <div className="px-4 py-3 border-t border-white/5 bg-white/[0.01] flex items-center justify-between text-xs text-gray-400">
+                  <span className="text-[11px] font-mono text-amber-400/90">{item.category}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1 text-[11px]">
+                      <Heart className="w-3 h-3 text-pink-400/80" />
+                      {item.stats.likes}
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px]">
+                      <Bookmark className="w-3 h-3 text-amber-400/80" />
+                      {item.stats.saves}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 5. Final CTA Section */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 border-t border-white/5 bg-gradient-to-b from-[#0e101a] to-[#090A10] relative overflow-hidden">
+        {/* Glow backdrop */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-amber-500/10 blur-[120px] rounded-full pointer-events-none" />
+
+        <div className="max-w-4xl mx-auto text-center relative z-10">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-400/10 border border-amber-400/20 text-amber-400 mb-6 shadow-xl shadow-amber-500/10">
+            <Sparkles className="w-7 h-7" />
+          </div>
+
+          <h3 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-tight">
+            Your creativity deserves to be discovered.
+          </h3>
+
+          <p className="mt-4 text-base sm:text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed">
+            Join ArtVest and put your work in front of people looking for creative talent.
+          </p>
+
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+            <Link
+              href="/app/explore"
+              className="px-6 py-3.5 rounded-xl text-sm font-bold text-black bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:scale-[1.02] shadow-lg shadow-amber-500/25 transition-all flex items-center gap-2"
+            >
+              <Compass className="w-4 h-4" />
+              Explore Talent
+            </Link>
+
+            <Link
+              href="/login"
+              className="px-6 py-3.5 rounded-xl text-sm font-semibold text-gray-200 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all flex items-center gap-2"
+            >
+              <Users className="w-4 h-4 text-indigo-400" />
+              Join ArtVest
+              <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
         </div>
       </section>

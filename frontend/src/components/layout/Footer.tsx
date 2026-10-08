@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { Sparkles, GraduationCap, ShieldCheck } from 'lucide-react';
+import { Sparkles, Compass, Users } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   return (
@@ -12,31 +12,28 @@ export const Footer: React.FC = () => {
           </div>
           <div>
             <p className="text-sm font-bold text-white tracking-wide">ArtVest</p>
-            <p className="text-xs text-gray-400">Discover Talent. Build Teams. Back Ideas.</p>
+            <p className="text-xs text-gray-400">Discover creative talent, showcase your work, and connect.</p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-gray-400">
-          <span className="flex items-center gap-1.5 text-gray-300">
-            <GraduationCap className="w-4 h-4 text-amber-400" />
-            B.Tech CSE Major Project (PR1107)
-          </span>
-          <span className="hidden sm:inline text-white/20">•</span>
-          <span className="flex items-center gap-1.5 text-gray-300">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            Structured Creative Talent Ecosystem
-          </span>
-          <span className="hidden sm:inline text-white/20">•</span>
-          <Link href="/login" className="hover:text-amber-400 transition-colors">
-            Authentication
+          <Link href="/app/explore" className="hover:text-amber-400 transition-colors flex items-center gap-1.5">
+            <Compass className="w-3.5 h-3.5 text-amber-400" />
+            Discover Talent
           </Link>
-          <Link href="/app/explore" className="hover:text-amber-400 transition-colors">
-            Talent Discovery
+          <span className="hidden sm:inline text-white/20">•</span>
+          <Link href="/app" className="hover:text-amber-400 transition-colors">
+            Showcase Feed
+          </Link>
+          <span className="hidden sm:inline text-white/20">•</span>
+          <Link href="/login" className="hover:text-amber-400 transition-colors flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-indigo-400" />
+            Join ArtVest
           </Link>
         </div>
 
         <p className="text-xs text-gray-500">
-          © 2026 ArtVest Project Team. Academic Prototype.
+          © 2026 ArtVest. All rights reserved.
         </p>
       </div>
     </footer>
