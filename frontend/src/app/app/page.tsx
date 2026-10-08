@@ -91,7 +91,7 @@ export default function FeedPage() {
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-black text-white tracking-tight">Showcase Feed</h1>
             <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/20">
-              Phase 3 Live
+              Live
             </span>
           </div>
           <p className="text-xs text-gray-400 mt-1">

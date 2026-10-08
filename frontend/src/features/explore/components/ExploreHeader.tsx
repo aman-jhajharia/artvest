@@ -46,7 +46,7 @@ export const ExploreHeader: React.FC<ExploreHeaderProps> = ({
         <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
           <span>Structured Talent Discovery</span>
           <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/20">
-            Phase 5
+            Talent Discovery
           </span>
         </h1>
         <p className="text-xs text-gray-400 mt-0.5">

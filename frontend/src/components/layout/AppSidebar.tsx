@@ -120,9 +120,9 @@ export const AppSidebar: React.FC = () => {
         {/* Phase 2 Feature: Creative Projects */}
         <div className="mt-6 pt-5 border-t border-white/10 px-1">
           <div className="flex items-center justify-between text-[11px] uppercase tracking-wider font-semibold text-gray-400 mb-2">
-            <span>Future End-Term</span>
+            <span>Upcoming</span>
             <span className="text-[10px] bg-white/5 text-gray-400 px-1.5 py-0.5 rounded border border-white/10">
-              Phase 2
+              Soon
             </span>
           </div>
 

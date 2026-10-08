@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     'Design',
     'Production',
   ],
-  authors: [{ name: 'ArtVest Team — PR1107 Major Project' }],
+  authors: [{ name: 'ArtVest Team' }],
   icons: {
     icon: '/favicon.ico',
   },
