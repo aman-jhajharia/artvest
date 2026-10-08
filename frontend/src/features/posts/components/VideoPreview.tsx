@@ -3,6 +3,7 @@
 import React, { useRef, useState } from 'react';
 import { Play, Pause, Volume2, VolumeX, Film } from 'lucide-react';
 import { PostMediaItem } from '../types/post.types';
+import { resolveMediaUrl } from '../utils/mediaUrl';
 
 interface VideoPreviewProps {
   media: PostMediaItem;
@@ -14,6 +15,9 @@ export function VideoPreview({ media, className = '' }: VideoPreviewProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(false);
+
+  const resolvedUrl = resolveMediaUrl(media.url);
+  const resolvedThumbnailUrl = resolveMediaUrl(media.thumbnailUrl);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -49,8 +53,8 @@ export function VideoPreview({ media, className = '' }: VideoPreviewProps) {
     >
       <video
         ref={videoRef}
-        src={media.url}
-        poster={media.thumbnailUrl || undefined}
+        src={resolvedUrl}
+        poster={resolvedThumbnailUrl || undefined}
         className="w-full h-full object-cover cursor-pointer"
         playsInline
         onPlay={() => setIsPlaying(true)}

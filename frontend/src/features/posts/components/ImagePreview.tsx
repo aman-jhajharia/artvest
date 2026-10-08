@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Maximize2, Image as ImageIcon, X } from 'lucide-react';
 import { PostMediaItem } from '../types/post.types';
+import { resolveMediaUrl } from '../utils/mediaUrl';
 
 interface ImagePreviewProps {
   media: PostMediaItem;
@@ -14,6 +15,7 @@ export function ImagePreview({ media, className = '', alt = 'Showcase artwork' }
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const resolvedUrl = resolveMediaUrl(media.url);
 
   // Derive aspect ratio class if available
   const getAspectRatioClass = () => {
@@ -45,7 +47,7 @@ export function ImagePreview({ media, className = '', alt = 'Showcase artwork' }
           </div>
         ) : (
           <img
-            src={media.url}
+            src={resolvedUrl}
             alt={alt}
             className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
               isLoading ? 'opacity-0' : 'opacity-100'
@@ -87,7 +89,7 @@ export function ImagePreview({ media, className = '', alt = 'Showcase artwork' }
             <X className="w-6 h-6" />
           </button>
           <img
-            src={media.url}
+            src={resolvedUrl}
             alt={alt}
             className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl"
             onClick={(e) => e.stopPropagation()}

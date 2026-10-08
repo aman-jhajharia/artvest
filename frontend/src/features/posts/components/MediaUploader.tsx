@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import { Upload, X, Loader2, Image as ImageIcon, Film, Music, AlertCircle } from 'lucide-react';
 import { PostMediaItem, MediaType, PostType } from '../types/post.types';
 import { PostApiService } from '../services/post.service';
+import { resolveMediaUrl } from '../utils/mediaUrl';
 
 interface MediaUploaderProps {
   postType: PostType;
@@ -179,12 +180,16 @@ export function MediaUploader({ postType, mediaList, onChange, maxFiles = 8 }: M
                 className="relative rounded-xl overflow-hidden border border-white/10 group bg-black/40 aspect-video flex items-center justify-center"
               >
                 {item.mediaType === 'IMAGE' ? (
-                  <img src={item.url} alt="Uploaded item" className="w-full h-full object-cover" />
+                  <img src={resolveMediaUrl(item.url)} alt="Uploaded item" className="w-full h-full object-cover" />
                 ) : item.mediaType === 'VIDEO' ? (
-                  <div className="flex flex-col items-center gap-1 text-purple-400">
-                    <Film className="w-6 h-6" />
-                    <span className="text-[10px] font-mono">Video File</span>
-                  </div>
+                  item.thumbnailUrl ? (
+                    <img src={resolveMediaUrl(item.thumbnailUrl)} alt="Uploaded item" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1 text-purple-400">
+                      <Film className="w-6 h-6" />
+                      <span className="text-[10px] font-mono">Video File</span>
+                    </div>
+                  )
                 ) : (
                   <div className="flex flex-col items-center gap-1 text-amber-400">
                     <Music className="w-6 h-6" />

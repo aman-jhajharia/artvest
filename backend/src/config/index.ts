@@ -21,12 +21,20 @@ export const config = {
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback',
   },
+  backendUrl: process.env.BACKEND_URL || `http://localhost:${parseInt(process.env.PORT || '5000', 10)}`,
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
     apiKey: process.env.CLOUDINARY_API_KEY || '',
     apiSecret: process.env.CLOUDINARY_API_SECRET || '',
   },
 } as const;
+
+export function getBackendBaseUrl(): string {
+  if (process.env.BACKEND_URL) {
+    return process.env.BACKEND_URL.replace(/\/+$/, '');
+  }
+  return `http://localhost:${config.port}`;
+}
 
 export function getSessionCookieOptions(envOverride?: string): CookieOptions {
   const isProduction = (envOverride ?? config.env) === 'production';

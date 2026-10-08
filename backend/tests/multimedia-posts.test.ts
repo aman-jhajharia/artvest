@@ -1,9 +1,12 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
+import fs from 'fs';
+import path from 'path';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/config/database.js';
 import { AuthService } from '../src/services/auth.service.js';
+import { config } from '../src/config/index.js';
 import { UserRole, PostType, PostStatus, MediaType } from '@prisma/client';
 
 const app = createApp();
@@ -485,4 +488,117 @@ describe('ArtVest Phase 3 - Multimedia Portfolio & Showcase Posts Test Suite', (
     assert.ok(page1.body.data.length <= 1);
     assert.ok(page1.body.pagination.totalCount >= 1);
   });
+
+  // 17. Development fallback returns absolute backend URL
+  it('17. Local file upload in development fallback returns absolute backend URL', async () => {
+    const fakeImageBuffer = Buffer.from('FAKE_IMAGE_DATA_123');
+    const res = await request(app)
+      .post('/api/media/upload')
+      .set('Cookie', [creatorCookie])
+      .attach('file', fakeImageBuffer, { filename: 'test_dev_art.png', contentType: 'image/png' });
+
+    assert.equal(res.status, 201);
+    assert.equal(res.body.success, true);
+    assert.ok(res.body.data.mediaUrl.startsWith('http://localhost:'), 'Must return absolute backend URL, not bare relative /uploads/...');
+    assert.ok(res.body.data.mediaUrl.includes('/uploads/'));
+    assert.equal(res.body.data.mediaType, 'IMAGE');
+
+    // Clean up created local file
+    if (res.body.data.meta?.localFilename) {
+      const localFilePath = path.join(process.cwd(), 'uploads', res.body.data.meta.localFilename);
+      if (fs.existsSync(localFilePath)) {
+        fs.unlinkSync(localFilePath);
+      }
+    }
+  });
+
+  // 18. Production Cloudinary guard rejects upload with 503 STORAGE_UNCONFIGURED if unconfigured
+  it('18. Production mode without Cloudinary credentials fails with 503 STORAGE_UNCONFIGURED and writes no file', async () => {
+    const originalEnv = config.env;
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    const filesBefore = fs.existsSync(uploadsDir) ? fs.readdirSync(uploadsDir) : [];
+
+    try {
+      // Simulate production environment
+      (config as any).env = 'production';
+
+      const fakeImageBuffer = Buffer.from('PRODUCTION_UNCONFIGURED_GUARD_TEST');
+      const res = await request(app)
+        .post('/api/media/upload')
+        .set('Cookie', [creatorCookie])
+        .attach('file', fakeImageBuffer, { filename: 'prod_blocked.png', contentType: 'image/png' });
+
+      assert.equal(res.status, 503);
+      assert.equal(res.body.success, false);
+      assert.equal(res.body.error?.code, 'STORAGE_UNCONFIGURED');
+      assert.equal(res.body.message, 'Cloudinary storage is required in production');
+
+      // Verify NO files were written to uploadsDir
+      const filesAfter = fs.existsSync(uploadsDir) ? fs.readdirSync(uploadsDir) : [];
+      assert.equal(filesAfter.length, filesBefore.length, 'No file should be written to local storage in production');
+    } finally {
+      (config as any).env = originalEnv;
+    }
+  });
+
+  // 19. Production Cloudinary guard rejects signature endpoint with 503 STORAGE_UNCONFIGURED if unconfigured
+  it('19. Production mode without Cloudinary credentials rejects upload signature with 503', async () => {
+    const originalEnv = config.env;
+    try {
+      (config as any).env = 'production';
+      const res = await request(app)
+        .post('/api/media/upload-signature')
+        .set('Cookie', [creatorCookie]);
+
+      assert.equal(res.status, 503);
+      assert.equal(res.body.error?.code, 'STORAGE_UNCONFIGURED');
+    } finally {
+      (config as any).env = originalEnv;
+    }
+  });
+
+  // 20. Frontend media URL resolver rules (Section 8.C)
+  it('20. Frontend resolveMediaUrl resolves paths according to specification', async () => {
+    const { resolveMediaUrl } = await import('../../frontend/src/features/posts/utils/mediaUrl.ts');
+
+    // Rule 1: Empty / falsy
+    assert.equal(resolveMediaUrl(''), '');
+    assert.equal(resolveMediaUrl(null as any), '');
+    assert.equal(resolveMediaUrl(undefined as any), '');
+
+    // Rule 2: Absolute Cloudinary URL unchanged
+    const cloudUrl = 'https://res.cloudinary.com/example/image/upload/test.jpg';
+    assert.equal(resolveMediaUrl(cloudUrl), cloudUrl);
+
+    // Rule 3: Absolute localhost URL unchanged
+    const localAbsolute = 'http://localhost:5000/uploads/test.jpg';
+    assert.equal(resolveMediaUrl(localAbsolute), localAbsolute);
+
+    // Rule 4: Relative /uploads/... resolved against backend origin
+    const resolvedRelative = resolveMediaUrl('/uploads/test.jpg');
+    assert.ok(resolvedRelative.startsWith('http://localhost:5000/uploads/test.jpg'));
+
+    // Rule 5: No duplicate /api in path
+    assert.ok(!resolvedRelative.includes('/api/uploads'));
+    assert.ok(!resolvedRelative.includes('/api/api'));
+  });
+
+  // 21. Verify all required frontend media components use resolveMediaUrl (Section 8.D)
+  it('21. Required frontend media components implement resolveMediaUrl', async () => {
+    const componentPaths = [
+      '../frontend/src/features/posts/components/ImagePreview.tsx',
+      '../frontend/src/features/posts/components/VideoPreview.tsx',
+      '../frontend/src/features/posts/components/AudioPreview.tsx',
+      '../frontend/src/features/posts/components/MediaGallery.tsx',
+      '../frontend/src/features/posts/components/MediaUploader.tsx',
+    ];
+
+    for (const relPath of componentPaths) {
+      const fullPath = path.resolve(process.cwd(), relPath);
+      assert.ok(fs.existsSync(fullPath), `Component file must exist: ${relPath}`);
+      const content = fs.readFileSync(fullPath, 'utf8');
+      assert.ok(content.includes('resolveMediaUrl'), `${relPath} must import and use resolveMediaUrl`);
+    }
+  });
 });
+

@@ -2,7 +2,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
-import { config } from '../config/index.js';
+import { config, getBackendBaseUrl } from '../config/index.js';
 import { AppError } from '../utils/apiResponse.js';
 
 export interface UploadedMediaResult {
@@ -59,12 +59,26 @@ export const MEDIA_LIMITS = {
 } as const;
 
 export class MediaStorageService {
-  private static isCloudinaryConfigured(): boolean {
-    return Boolean(
-      config.cloudinary.cloudName &&
-        config.cloudinary.apiKey &&
-        config.cloudinary.apiSecret
-    );
+  public static isCloudinaryConfigured(): boolean {
+    const { cloudName, apiKey, apiSecret } = config.cloudinary;
+    if (!cloudName || !apiKey || !apiSecret) {
+      return false;
+    }
+    const isPlaceholder = (val: string) => {
+      const lower = val.toLowerCase();
+      return (
+        lower.includes('placeholder') ||
+        lower.includes('dummy') ||
+        lower.includes('your_') ||
+        lower.includes('demo')
+      );
+    };
+
+    if (isPlaceholder(cloudName) || isPlaceholder(apiKey) || isPlaceholder(apiSecret)) {
+      return false;
+    }
+
+    return true;
   }
 
   private static initCloudinary(): void {
@@ -203,6 +217,11 @@ export class MediaStorageService {
       });
     }
 
+    // Production guard: Cloudinary is strictly required in production
+    if (config.env === 'production') {
+      throw new AppError('Cloudinary storage is required in production', 503, 'STORAGE_UNCONFIGURED');
+    }
+
     // 2. Local Development & Automated Test Environment Storage
     // Avoids external cloud rate-limiting or network requirements during academic grading
     const uploadsDir = path.resolve(process.cwd(), 'uploads');
@@ -216,7 +235,8 @@ export class MediaStorageService {
 
     fs.writeFileSync(filePath, buffer);
 
-    const localUrl = `/uploads/${filename}`;
+    const backendOrigin = getBackendBaseUrl();
+    const localUrl = `${backendOrigin}/uploads/${filename}`;
     const simulatedWaveform = mediaType === 'AUDIO' ? this.generateWaveformPoints() : null;
 
     return {
@@ -272,9 +292,14 @@ export class MediaStorageService {
       };
     }
 
+    if (config.env === 'production') {
+      throw new AppError('Cloudinary storage is required in production', 503, 'STORAGE_UNCONFIGURED');
+    }
+
+    const backendOrigin = getBackendBaseUrl();
     return {
       provider: 'local',
-      uploadUrl: '/api/media/upload',
+      uploadUrl: `${backendOrigin}/api/media/upload`,
       timestamp,
       folder,
     };
@@ -289,7 +314,18 @@ export class MediaStorageService {
       const resourceType = mediaType === 'VIDEO' || mediaType === 'AUDIO' ? 'video' : 'image';
       await cloudinary.uploader.destroy(publicIdOrPath, { resource_type: resourceType }).catch(() => {});
     } else {
-      const localPath = path.join(process.cwd(), publicIdOrPath.startsWith('/') ? publicIdOrPath.slice(1) : publicIdOrPath);
+      if (config.env === 'production') {
+        return;
+      }
+      let relativePath = publicIdOrPath;
+      try {
+        if (publicIdOrPath.startsWith('http://') || publicIdOrPath.startsWith('https://')) {
+          const urlObj = new URL(publicIdOrPath);
+          relativePath = urlObj.pathname;
+        }
+      } catch {}
+      const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+      const localPath = path.join(process.cwd(), cleanPath);
       if (fs.existsSync(localPath)) {
         try {
           fs.unlinkSync(localPath);

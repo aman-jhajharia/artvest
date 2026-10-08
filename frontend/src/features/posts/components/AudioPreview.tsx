@@ -3,6 +3,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Play, Pause, Volume2, VolumeX, Music, Disc } from 'lucide-react';
 import { PostMediaItem } from '../types/post.types';
+import { resolveMediaUrl } from '../utils/mediaUrl';
 
 interface AudioPreviewProps {
   media: PostMediaItem;
@@ -16,6 +17,7 @@ export function AudioPreview({ media, className = '', title }: AudioPreviewProps
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(media.duration || 0);
   const [isMuted, setIsMuted] = useState(false);
+  const resolvedUrl = resolveMediaUrl(media.url);
 
   // Generate or read waveform bars (default 48 bars)
   const waveform: number[] =
@@ -89,7 +91,7 @@ export function AudioPreview({ media, className = '', title }: AudioPreviewProps
     <div
       className={`rounded-2xl p-5 bg-gradient-to-br from-black/80 via-white/[0.03] to-white/[0.01] border border-white/10 shadow-xl relative overflow-hidden ${className}`}
     >
-      <audio ref={audioRef} src={media.url} preload="metadata" />
+      <audio ref={audioRef} src={resolvedUrl} preload="metadata" />
 
       {/* Decorative vinyl/ambient glow */}
       <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />

@@ -376,12 +376,14 @@ async function main() {
 
   await prisma.postMedia.upsert({
     where: { id: 'seed_media_aanya_1' },
-    update: {},
+    update: {
+      url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+    },
     create: {
       id: 'seed_media_aanya_1',
       postId: postAanya1.id,
       mediaType: MediaType.AUDIO,
-      url: 'https://res.cloudinary.com/demo/video/upload/sample.mp3',
+      url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
       thumbnailUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600',
       duration: 184.5,
       orderIndex: 0,

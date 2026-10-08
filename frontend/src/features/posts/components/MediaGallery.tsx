@@ -5,6 +5,7 @@ import { PostMediaItem } from '../types/post.types';
 import { ImagePreview } from './ImagePreview';
 import { VideoPreview } from './VideoPreview';
 import { AudioPreview } from './AudioPreview';
+import { resolveMediaUrl } from '../utils/mediaUrl';
 import { ChevronLeft, ChevronRight, Layers } from 'lucide-react';
 
 interface MediaGalleryProps {
@@ -95,14 +96,22 @@ export function MediaGallery({ media, title, className = '' }: MediaGalleryProps
           >
             {item.mediaType === 'IMAGE' ? (
               <img
-                src={item.thumbnailUrl || item.url}
+                src={resolveMediaUrl(item.thumbnailUrl || item.url)}
                 alt="thumb"
                 className="w-full h-full object-cover"
               />
             ) : item.mediaType === 'VIDEO' ? (
-              <div className="w-full h-full bg-purple-950/60 flex items-center justify-center text-[9px] font-mono text-purple-300">
-                VIDEO
-              </div>
+              item.thumbnailUrl ? (
+                <img
+                  src={resolveMediaUrl(item.thumbnailUrl)}
+                  alt="thumb"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-purple-950/60 flex items-center justify-center text-[9px] font-mono text-purple-300">
+                  VIDEO
+                </div>
+              )
             ) : (
               <div className="w-full h-full bg-amber-950/60 flex items-center justify-center text-[9px] font-mono text-amber-300">
                 AUDIO
