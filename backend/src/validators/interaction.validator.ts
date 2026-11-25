@@ -55,6 +55,16 @@ export const CreateInquirySchema = z.object({
 
 export type CreateInquiryInput = z.infer<typeof CreateInquirySchema>;
 
+export const CreateCollaborationMessageSchema = z.object({
+  content: z
+    .string({ required_error: 'Message content is required' })
+    .trim()
+    .min(1, 'Message cannot be empty')
+    .max(2000, 'Message cannot exceed 2000 characters'),
+});
+
+export type CreateCollaborationMessageInput = z.infer<typeof CreateCollaborationMessageSchema>;
+
 export const UpdateInquiryStatusSchema = z.object({
   status: z.nativeEnum(InquiryStatus, {
     errorMap: () => ({ message: 'Status must be ACCEPTED, DECLINED, or WITHDRAWN' }),

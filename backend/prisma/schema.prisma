@@ -64,6 +64,7 @@ enum NotificationType {
   COLLABORATION_INQUIRY_CREATED
   COLLABORATION_ACCEPTED
   COLLABORATION_DECLINED
+  COLLABORATION_MESSAGE_RECEIVED
   LIKE
   COMMENT
   FOLLOW
@@ -119,6 +120,7 @@ model User {
   followers             Follow[]          @relation("UserFollowers")
   sentInquiries         CollaborationInquiry[] @relation("SentCollaborationInquiries")
   receivedInquiries     CollaborationInquiry[] @relation("ReceivedCollaborationInquiries")
+  sentCollaborationMessages CollaborationMessage[] @relation("SentCollaborationMessages")
 
   // System & Moderation relations
   notificationsReceived Notification[]    @relation("RecipientNotifications")
@@ -385,12 +387,27 @@ model CollaborationInquiry {
   sender      User          @relation("SentCollaborationInquiries", fields: [senderId], references: [id], onDelete: Cascade)
   recipient   User          @relation("ReceivedCollaborationInquiries", fields: [recipientId], references: [id], onDelete: Cascade)
   post        Post?         @relation(fields: [postId], references: [id], onDelete: SetNull)
+  messages    CollaborationMessage[]
 
   @@index([senderId])
   @@index([recipientId])
   @@index([postId])
   @@index([status])
   @@index([createdAt])
+}
+
+model CollaborationMessage {
+  id          String               @id @default(cuid())
+  inquiryId   String
+  senderId    String
+  content     String
+  createdAt   DateTime             @default(now())
+
+  inquiry     CollaborationInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  sender      User                 @relation("SentCollaborationMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([inquiryId, createdAt])
+  @@index([senderId])
 }
 
 // ==========================================

@@ -57,6 +57,21 @@ export default function StudioPage() {
   const [editingPost, setEditingPost] = useState<PostItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [initialInquiryId, setInitialInquiryId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const inqId = params.get('inquiryId');
+      if (tab === 'COLLABORATION') {
+        setActiveTab('COLLABORATION');
+      }
+      if (inqId) {
+        setInitialInquiryId(inqId);
+      }
+    }
+  }, []);
 
   // Load Overview Data
   const loadOverview = useCallback(async () => {
@@ -775,7 +790,9 @@ export default function StudioPage() {
       {/* ======================================================== */}
       {/* 3. COLLABORATION INQUIRIES TAB                           */}
       {/* ======================================================== */}
-      {activeTab === 'COLLABORATION' && <CollaborationInquiriesList />}
+      {activeTab === 'COLLABORATION' && (
+        <CollaborationInquiriesList initialInquiryId={initialInquiryId} />
+      )}
 
       {/* ======================================================== */}
       {/* 4. CONTENT MANAGEMENT TABS: PUBLISHED, DRAFT, FEATURED   */}

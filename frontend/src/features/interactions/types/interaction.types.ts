@@ -84,3 +84,48 @@ export interface CollaborationInquiryItem {
     }>;
   } | null;
 }
+
+export interface CollaborationMessageItem {
+  id: string;
+  inquiryId: string;
+  senderId: string;
+  content: string;
+  createdAt: string;
+  sender?: {
+    id: string;
+    name: string | null;
+    avatarUrl: string | null;
+  };
+}
+
+export interface CollaborationChatData {
+  inquiry: {
+    id: string;
+    status: InquiryStatus;
+    message: string;
+    createdAt: string;
+    senderId: string;
+    recipientId: string;
+    sender?: {
+      id: string;
+      name: string | null;
+      avatarUrl: string | null;
+      creatorProfile?: {
+        id: string;
+        stageName?: string | null;
+        headline?: string | null;
+      } | null;
+    };
+    recipient?: {
+      id: string;
+      name: string | null;
+      avatarUrl: string | null;
+      creatorProfile?: {
+        id: string;
+        stageName?: string | null;
+        headline?: string | null;
+      } | null;
+    };
+  };
+  messages: CollaborationMessageItem[];
+}

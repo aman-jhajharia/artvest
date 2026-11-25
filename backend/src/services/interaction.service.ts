@@ -963,4 +963,173 @@ export class InteractionService {
 
     return updated;
   }
+
+  public static async getCollaborationMessages(userId: string, inquiryId: string) {
+    const inquiry = await prisma.collaborationInquiry.findUnique({
+      where: { id: inquiryId },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+            creatorProfile: {
+              select: {
+                id: true,
+                stageName: true,
+                headline: true,
+              },
+            },
+          },
+        },
+        recipient: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+            creatorProfile: {
+              select: {
+                id: true,
+                stageName: true,
+                headline: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!inquiry) {
+      throw new AppError('Collaboration inquiry not found', 404, 'INQUIRY_NOT_FOUND');
+    }
+
+    if (inquiry.status !== InquiryStatus.ACCEPTED) {
+      throw new AppError(
+        'Collaboration must be accepted before chatting',
+        403,
+        'COLLABORATION_NOT_ACCEPTED'
+      );
+    }
+
+    if (inquiry.senderId !== userId && inquiry.recipientId !== userId) {
+      throw new AppError(
+        'Only participants of this collaboration can view messages',
+        403,
+        'FORBIDDEN_INQUIRY_ACTION'
+      );
+    }
+
+    const messages = await prisma.collaborationMessage.findMany({
+      where: { inquiryId },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    return {
+      inquiry: {
+        id: inquiry.id,
+        status: inquiry.status,
+        message: inquiry.message,
+        createdAt: inquiry.createdAt,
+        senderId: inquiry.senderId,
+        recipientId: inquiry.recipientId,
+        sender: inquiry.sender,
+        recipient: inquiry.recipient,
+      },
+      messages,
+    };
+  }
+
+  public static async sendCollaborationMessage(userId: string, inquiryId: string, content: string) {
+    const inquiry = await prisma.collaborationInquiry.findUnique({
+      where: { id: inquiryId },
+    });
+
+    if (!inquiry) {
+      throw new AppError('Collaboration inquiry not found', 404, 'INQUIRY_NOT_FOUND');
+    }
+
+    if (inquiry.status !== InquiryStatus.ACCEPTED) {
+      throw new AppError(
+        'Collaboration must be accepted before chatting',
+        403,
+        'COLLABORATION_NOT_ACCEPTED'
+      );
+    }
+
+    if (inquiry.senderId !== userId && inquiry.recipientId !== userId) {
+      throw new AppError(
+        'Only participants of this collaboration can send messages',
+        403,
+        'FORBIDDEN_INQUIRY_ACTION'
+      );
+    }
+
+    const message = await prisma.collaborationMessage.create({
+      data: {
+        inquiryId,
+        senderId: userId,
+        content,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    // Notify the other participant with debouncing (only if no unread message notification exists)
+    const recipientUserId = inquiry.senderId === userId ? inquiry.recipientId : inquiry.senderId;
+
+    try {
+      const existingUnread = await prisma.notification.findFirst({
+        where: {
+          recipientId: recipientUserId,
+          type: NotificationType.COLLABORATION_MESSAGE_RECEIVED,
+          resourceId: inquiry.id,
+          isRead: false,
+        },
+      });
+
+      if (existingUnread) {
+        await prisma.notification.update({
+          where: { id: existingUnread.id },
+          data: {
+            actorId: userId,
+            message: 'sent you new messages in your collaboration',
+            createdAt: new Date(),
+          },
+        });
+      } else {
+        await prisma.notification.create({
+          data: {
+            recipientId: recipientUserId,
+            actorId: userId,
+            type: NotificationType.COLLABORATION_MESSAGE_RECEIVED,
+            title: 'New Collaboration Message',
+            message: 'sent you a message in your collaboration',
+            resourceId: inquiry.id,
+            resourceType: 'INQUIRY',
+            isRead: false,
+          },
+        });
+      }
+    } catch (err) {
+      console.error('Failed to dispatch collaboration message notification', err);
+    }
+
+    return message;
+  }
 }

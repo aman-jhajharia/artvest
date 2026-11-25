@@ -118,7 +118,11 @@ export default function NotificationsPage() {
 
     // Contextual routing based on resource type
     if (item.type.includes('COLLABORATION')) {
-      router.push('/app/studio');
+      if (item.resourceId) {
+        router.push(`/app/studio?tab=COLLABORATION&inquiryId=${item.resourceId}`);
+      } else {
+        router.push('/app/studio?tab=COLLABORATION');
+      }
     } else if (item.type === 'CREATOR_FOLLOWED' && item.actorId) {
       router.push(`/app/explore`);
     } else if (item.resourceId && item.resourceType === 'POST') {
@@ -176,6 +180,12 @@ export default function NotificationsPage() {
           icon: CheckCircle,
           badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
           dotColor: 'bg-emerald-400',
+        };
+      case 'COLLABORATION_MESSAGE_RECEIVED':
+        return {
+          icon: MessageSquare,
+          badgeColor: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+          dotColor: 'bg-amber-400',
         };
       case 'COLLABORATION_DECLINED':
         return {

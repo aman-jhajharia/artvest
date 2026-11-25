@@ -9,6 +9,7 @@ import {
   CreateInquirySchema,
   UpdateInquiryStatusSchema,
   InquiriesQuerySchema,
+  CreateCollaborationMessageSchema,
 } from '../validators/interaction.validator.js';
 import { AppError } from '../utils/apiResponse.js';
 
@@ -370,6 +371,53 @@ export class InteractionController {
         success: true,
         message: `Collaboration inquiry status updated to ${validatedInput.status.toLowerCase()}`,
         data: inquiry,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ==========================================
+  // 6. COLLABORATION CHAT
+  // ==========================================
+
+  public static async getInquiryMessages(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user?.id) {
+        throw new AppError('Unauthorized', 401, 'UNAUTHORIZED');
+      }
+
+      const inquiryId = String(req.params.id);
+      const result = await InteractionService.getCollaborationMessages(req.user.id, inquiryId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Collaboration messages retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public static async sendInquiryMessage(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user?.id) {
+        throw new AppError('Unauthorized', 401, 'UNAUTHORIZED');
+      }
+
+      const inquiryId = String(req.params.id);
+      const validatedInput = CreateCollaborationMessageSchema.parse(req.body);
+      const message = await InteractionService.sendCollaborationMessage(
+        req.user.id,
+        inquiryId,
+        validatedInput.content
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Collaboration message sent successfully',
+        data: message,
       });
     } catch (error) {
       next(error);

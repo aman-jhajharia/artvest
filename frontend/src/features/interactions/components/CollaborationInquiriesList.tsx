@@ -14,15 +14,28 @@ import {
   User,
   ArrowRight,
   Sparkles,
+  MessageSquare,
 } from 'lucide-react';
+import { CollaborationChatDrawer } from './CollaborationChatDrawer';
 
-export function CollaborationInquiriesList() {
+interface CollaborationInquiriesListProps {
+  initialInquiryId?: string | null;
+}
+
+export function CollaborationInquiriesList({ initialInquiryId }: CollaborationInquiriesListProps = {}) {
   const [activeTab, setActiveTab] = useState<'RECEIVED' | 'SENT'>('RECEIVED');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [inquiries, setInquiries] = useState<CollaborationInquiryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [activeChatInquiryId, setActiveChatInquiryId] = useState<string | null>(initialInquiryId || null);
+
+  useEffect(() => {
+    if (initialInquiryId) {
+      setActiveChatInquiryId(initialInquiryId);
+    }
+  }, [initialInquiryId]);
 
   const loadInquiries = useCallback(async () => {
     setIsLoading(true);
@@ -295,11 +308,30 @@ export function CollaborationInquiriesList() {
                       Withdraw Inquiry
                     </button>
                   )}
+
+                  {inquiry.status === 'ACCEPTED' && (
+                    <button
+                      onClick={() => setActiveChatInquiryId(inquiry.id)}
+                      className="px-4 py-1.5 rounded-xl bg-amber-400 text-black text-xs font-mono font-bold hover:brightness-105 active:scale-95 transition-all shadow-md shadow-amber-400/20 flex items-center gap-1.5"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Open Chat
+                    </button>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* Live Collaboration Chat Drawer */}
+      {activeChatInquiryId && (
+        <CollaborationChatDrawer
+          inquiryId={activeChatInquiryId}
+          isOpen={!!activeChatInquiryId}
+          onClose={() => setActiveChatInquiryId(null)}
+        />
       )}
     </div>
   );

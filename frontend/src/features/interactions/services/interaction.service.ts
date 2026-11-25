@@ -7,6 +7,8 @@ import {
   CommentItem,
   CollaborationInquiryItem,
   InquiryStatus,
+  CollaborationMessageItem,
+  CollaborationChatData,
 } from '../types/interaction.types';
 import { API_BASE_URL } from '@/config/api';
 
@@ -264,5 +266,33 @@ export class InteractionApiService {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
+  }
+
+  // ==========================================
+  // 6. COLLABORATION CHAT
+  // ==========================================
+
+  public static async getInquiryMessages(
+    inquiryId: string
+  ): Promise<ApiResponse<CollaborationChatData>> {
+    return this.request<CollaborationChatData>(
+      `/collaboration/inquiries/${inquiryId}/messages`,
+      {
+        method: 'GET',
+      }
+    );
+  }
+
+  public static async sendInquiryMessage(
+    inquiryId: string,
+    content: string
+  ): Promise<ApiResponse<CollaborationMessageItem>> {
+    return this.request<CollaborationMessageItem>(
+      `/collaboration/inquiries/${inquiryId}/messages`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ content }),
+      }
+    );
   }
 }

@@ -11,5 +11,7 @@ router.post('/inquiries', InteractionController.createInquiry);
 router.get('/inquiries/sent', InteractionController.getSentInquiries);
 router.get('/inquiries/received', InteractionController.getReceivedInquiries);
 router.patch('/inquiries/:id', InteractionController.updateInquiryStatus);
+router.get('/inquiries/:id/messages', InteractionController.getInquiryMessages);
+router.post('/inquiries/:id/messages', InteractionController.sendInquiryMessage);
 
 export const collaborationRoutes = router;
