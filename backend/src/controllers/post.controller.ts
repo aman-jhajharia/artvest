@@ -212,6 +212,23 @@ export class PostController {
   }
 
   /**
+   * Retrieves top trending published posts scored by recent engagement and recency.
+   */
+  public static async getTrendingFeed(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const limit = Math.min(20, Math.max(1, req.query.limit ? parseInt(String(req.query.limit), 10) : 10));
+      const posts = await PostService.getTrendingFeed(limit, req.user?.id);
+
+      res.status(200).json({
+        success: true,
+        data: posts,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Chronological showcase feed endpoint.
    * Returns only PUBLISHED posts, with author profile, media, category, and skills.
    */

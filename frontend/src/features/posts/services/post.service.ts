@@ -53,6 +53,11 @@ export class PostApiService {
     return this.request<PostItem[]>(`/feed${query}`, { method: 'GET' }) as any;
   }
 
+  // Trending Showcase Feed (scrolling ticker marquee)
+  public static async getTrending(limit: number = 10): Promise<ApiResponse<PostItem[]>> {
+    return this.request<PostItem[]>(`/feed/trending?limit=${limit}`, { method: 'GET' });
+  }
+
   // Create post / draft
   public static async createPost(payload: CreatePostPayload): Promise<ApiResponse<PostItem>> {
     return this.request<PostItem>('/posts', {

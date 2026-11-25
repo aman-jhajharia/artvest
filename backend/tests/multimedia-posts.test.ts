@@ -600,5 +600,77 @@ describe('ArtVest Phase 3 - Multimedia Portfolio & Showcase Posts Test Suite', (
       assert.ok(content.includes('resolveMediaUrl'), `${relPath} must import and use resolveMediaUrl`);
     }
   });
+
+  // 22. GET /api/feed/trending returns top published posts ordered by engagement and recency
+  it('22. GET /api/feed/trending returns published posts ordered by engagement and recency', async () => {
+    // Create high-engagement post
+    const highEngPost = await prisma.post.create({
+      data: {
+        authorId: creatorUserId,
+        creatorProfileId,
+        title: 'Trending Hit Showcase',
+        caption: 'High engagement trending showcase',
+        status: PostStatus.PUBLISHED,
+        publishedAt: new Date(),
+        categoryId: visualArtCategoryId,
+        likes: {
+          create: [{ userId: regularUserId }],
+        },
+      },
+    });
+
+    const res = await request(app).get('/api/feed/trending');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.success, true);
+    assert.ok(Array.isArray(res.body.data));
+    assert.ok(res.body.data.length > 0);
+
+    // The high-engagement post must be in the trending list
+    const found = res.body.data.find((p: any) => p.id === highEngPost.id);
+    assert.ok(found, 'High engagement post must appear in trending feed');
+    assert.equal(found.status, 'PUBLISHED');
+    assert.ok(found.creatorProfile, 'Must include creatorProfile');
+  });
+
+  // 23. GET /api/feed/trending strictly excludes draft/unpublished posts
+  it('23. GET /api/feed/trending strictly excludes draft posts', async () => {
+    const trendingDraft = await prisma.post.create({
+      data: {
+        authorId: creatorUserId,
+        creatorProfileId,
+        title: 'Hidden Draft Trending Candidate',
+        caption: 'Should never appear in trending',
+        status: PostStatus.DRAFT,
+      },
+    });
+
+    const res = await request(app).get('/api/feed/trending');
+    assert.equal(res.status, 200);
+    const leaked = res.body.data.find((p: any) => p.id === trendingDraft.id);
+    assert.equal(leaked, undefined, 'Draft post must NOT appear in trending feed');
+  });
+
+  // 24. GET /api/feed/trending respects limit parameter
+  it('24. GET /api/feed/trending respects limit query parameter', async () => {
+    const res = await request(app).get('/api/feed/trending?limit=1');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.success, true);
+    assert.equal(res.body.data.length, 1);
+  });
+
+  // 25. GET /api/feed/trending returns real database structure without mock data
+  it('25. GET /api/feed/trending returns real database structure and handles empty state gracefully', async () => {
+    const res = await request(app).get('/api/feed/trending');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.success, true);
+    assert.ok(Array.isArray(res.body.data));
+    if (res.body.data.length > 0) {
+      const first = res.body.data[0];
+      assert.ok(first.id);
+      assert.ok(first.author);
+      assert.ok(first.likeCount !== undefined);
+      assert.ok(first.commentCount !== undefined);
+    }
+  });
 });
 

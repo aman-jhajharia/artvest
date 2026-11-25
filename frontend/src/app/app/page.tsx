@@ -5,6 +5,7 @@ import { PostItem, PostType } from '@/features/posts/types/post.types';
 import { PostApiService } from '@/features/posts/services/post.service';
 import { PostCard } from '@/features/posts/components/PostCard';
 import { CreateShowcaseModal } from '@/features/posts/components/CreateShowcaseModal';
+import { TrendingFeedTicker } from '@/features/posts/components/TrendingFeedTicker';
 import {
   Sparkles,
   PlusCircle,
@@ -27,6 +28,7 @@ export default function FeedPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [refreshTickerCount, setRefreshTickerCount] = useState(0);
 
   const fetchFeed = useCallback(
     async (targetPage = 1, append = false) => {
@@ -80,6 +82,7 @@ export default function FeedPage() {
   const handleCreatedSuccess = (newPost: PostItem) => {
     if (newPost.status === 'PUBLISHED') {
       setPosts((prev) => [newPost, ...prev]);
+      setRefreshTickerCount((c) => c + 1);
     }
   };
 
@@ -102,7 +105,10 @@ export default function FeedPage() {
         <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={() => fetchFeed(1, false)}
+            onClick={() => {
+              fetchFeed(1, false);
+              setRefreshTickerCount((c) => c + 1);
+            }}
             title="Refresh feed"
             className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/10 transition-colors"
           >
@@ -119,6 +125,9 @@ export default function FeedPage() {
           </button>
         </div>
       </div>
+
+      {/* Trending Scrolling Ticker */}
+      <TrendingFeedTicker onRefresh={refreshTickerCount} />
 
       {/* Medium Type Filter Bar */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
@@ -158,7 +167,9 @@ export default function FeedPage() {
       ) : posts.length > 0 ? (
         <div className="space-y-6">
           {posts.map((post) => (
-            <PostCard key={post.id} post={post} />
+            <div key={post.id} id={`post-${post.id}`} className="rounded-3xl scroll-mt-20 transition-all duration-300">
+              <PostCard post={post} />
+            </div>
           ))}
 
           {/* Pagination / Load More */}

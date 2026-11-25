@@ -770,4 +770,110 @@ export class PostService {
       },
     };
   }
+
+  /**
+   * Retrieves top trending published posts scored by recent engagement and recency.
+   * Never returns mock data; strictly published posts only.
+   */
+  public static async getTrendingFeed(limit: number = 10, currentUserId?: string) {
+    const candidatePosts = await prisma.post.findMany({
+      where: {
+        status: PostStatus.PUBLISHED,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+            role: true,
+            followers: currentUserId
+              ? {
+                  where: { followerId: currentUserId },
+                  select: { id: true },
+                }
+              : false,
+          },
+        },
+        creatorProfile: {
+          select: {
+            id: true,
+            stageName: true,
+            headline: true,
+            location: true,
+            primaryCategory: true,
+            isVerified: true,
+          },
+        },
+        category: true,
+        skills: true,
+        media: {
+          orderBy: { orderIndex: 'asc' },
+        },
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+            saves: true,
+          },
+        },
+        likes: currentUserId
+          ? {
+              where: { userId: currentUserId },
+              select: { id: true },
+            }
+          : false,
+        saves: currentUserId
+          ? {
+              where: { userId: currentUserId },
+              select: { id: true },
+            }
+          : false,
+      },
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      take: 50,
+    });
+
+    if (candidatePosts.length === 0) {
+      return [];
+    }
+
+    const scored = candidatePosts.map((post) => {
+      const likes = post._count?.likes ?? 0;
+      const comments = post._count?.comments ?? 0;
+      const saves = post._count?.saves ?? 0;
+      const featuredBonus = post.isFeatured ? 5 : 0;
+      const rawEngagement = likes * 2 + comments * 3 + saves * 3 + featuredBonus;
+
+      const pubDate = post.publishedAt || post.createdAt;
+      const hoursOld = Math.max(0, (Date.now() - pubDate.getTime()) / (1000 * 60 * 60));
+      let recencyBonus = 0;
+      if (hoursOld <= 24) recencyBonus = 15;
+      else if (hoursOld <= 72) recencyBonus = 10;
+      else if (hoursOld <= 168) recencyBonus = 5;
+
+      const trendingScore = rawEngagement + recencyBonus;
+
+      return {
+        post,
+        rawEngagement,
+        trendingScore,
+      };
+    });
+
+    scored.sort((a, b) => {
+      const scoreDiff = b.trendingScore - a.trendingScore;
+      if (scoreDiff !== 0) return scoreDiff;
+      const engDiff = b.rawEngagement - a.rawEngagement;
+      if (engDiff !== 0) return engDiff;
+      const timeA = a.post.publishedAt?.getTime() || a.post.createdAt.getTime();
+      const timeB = b.post.publishedAt?.getTime() || b.post.createdAt.getTime();
+      const timeDiff = timeB - timeA;
+      return timeDiff !== 0 ? timeDiff : a.post.id.localeCompare(b.post.id);
+    });
+
+    const topPosts = scored.slice(0, limit).map((s) => s.post);
+    const inquiryMap = await this.fetchInquiryMapForPosts(currentUserId, topPosts);
+    return topPosts.map((p) => this.formatPostWithInteractions(p, currentUserId, inquiryMap));
+  }
 }
