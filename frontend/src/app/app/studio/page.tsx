@@ -6,7 +6,6 @@ import { useAuth } from '@/features/auth/hooks/useAuth';
 import { PostItem } from '@/features/posts/types/post.types';
 import { PostApiService } from '@/features/posts/services/post.service';
 import { CreateShowcaseModal } from '@/features/posts/components/CreateShowcaseModal';
-import { CollaborationInquiriesList } from '@/features/interactions/components/CollaborationInquiriesList';
 import { StudioApiService } from '@/features/studio/services/studio.service';
 import {
   StudioOverviewData,
@@ -42,7 +41,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 
-type StudioTab = 'OVERVIEW' | 'PERFORMANCE' | 'PUBLISHED' | 'DRAFT' | 'FEATURED' | 'COLLABORATION';
+type StudioTab = 'OVERVIEW' | 'PERFORMANCE' | 'PUBLISHED' | 'DRAFT' | 'FEATURED';
 
 export default function StudioPage() {
   const { user } = useAuth();
@@ -57,21 +56,6 @@ export default function StudioPage() {
   const [editingPost, setEditingPost] = useState<PostItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [initialInquiryId, setInitialInquiryId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const tab = params.get('tab');
-      const inqId = params.get('inquiryId');
-      if (tab === 'COLLABORATION') {
-        setActiveTab('COLLABORATION');
-      }
-      if (inqId) {
-        setInitialInquiryId(inqId);
-      }
-    }
-  }, []);
 
   // Load Overview Data
   const loadOverview = useCallback(async () => {
@@ -105,7 +89,7 @@ export default function StudioPage() {
 
   // Load Post Management Data (Published, Drafts, Featured)
   const loadPosts = useCallback(async () => {
-    if (activeTab === 'OVERVIEW' || activeTab === 'PERFORMANCE' || activeTab === 'COLLABORATION') {
+    if (activeTab === 'OVERVIEW' || activeTab === 'PERFORMANCE') {
       return;
     }
 
@@ -293,7 +277,6 @@ export default function StudioPage() {
           { id: 'PUBLISHED', label: 'Published Work', icon: Layers },
           { id: 'DRAFT', label: 'Drafts', icon: Edit },
           { id: 'FEATURED', label: 'Featured Spotlight', icon: Star },
-          { id: 'COLLABORATION', label: 'Collaboration Inquiries', icon: Handshake },
         ].map((tab) => {
           const TabIcon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -788,14 +771,7 @@ export default function StudioPage() {
       )}
 
       {/* ======================================================== */}
-      {/* 3. COLLABORATION INQUIRIES TAB                           */}
-      {/* ======================================================== */}
-      {activeTab === 'COLLABORATION' && (
-        <CollaborationInquiriesList initialInquiryId={initialInquiryId} />
-      )}
-
-      {/* ======================================================== */}
-      {/* 4. CONTENT MANAGEMENT TABS: PUBLISHED, DRAFT, FEATURED   */}
+      {/* 3. CONTENT MANAGEMENT TABS: PUBLISHED, DRAFT, FEATURED   */}
       {/* ======================================================== */}
       {(activeTab === 'PUBLISHED' || activeTab === 'DRAFT' || activeTab === 'FEATURED') && (
         <>

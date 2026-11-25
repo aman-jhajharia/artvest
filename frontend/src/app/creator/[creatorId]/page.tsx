@@ -9,6 +9,7 @@ import { RoleAttributesDisplay } from '@/features/creator/components/RoleAttribu
 import { PortfolioSection } from '@/features/creator/components/PortfolioSection';
 import { InteractionApiService } from '@/features/interactions/services/interaction.service';
 import { CollaborateModal } from '@/features/interactions/components/CollaborateModal';
+import { CollaborationChatDrawer } from '@/features/interactions/components/CollaborationChatDrawer';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import {
   MapPin,
@@ -25,6 +26,7 @@ import {
   ArrowLeft,
   Share2,
   Handshake,
+  MessageSquare,
 } from 'lucide-react';
 
 function PublicCreatorProfileContent() {
@@ -44,6 +46,7 @@ function PublicCreatorProfileContent() {
   const [followingCount, setFollowingCount] = useState(0);
   const [postCount, setPostCount] = useState(0);
   const [isCollabModalOpen, setIsCollabModalOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     if (creatorId) {
@@ -301,13 +304,55 @@ function PublicCreatorProfileContent() {
                       )}
                     </button>
 
-                    <button
-                      onClick={() => setIsCollabModalOpen(true)}
-                      className="px-4 py-2 rounded-xl bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-amber-400/10"
-                    >
-                      <Handshake className="w-3.5 h-3.5" />
-                      <span>Collaborate</span>
-                    </button>
+                    {/* Dynamic Collaboration CTA State */}
+                    {!creatorProfile.collaborationInquiry || creatorProfile.collaborationInquiry.status === 'WITHDRAWN' ? (
+                      <button
+                        onClick={() => setIsCollabModalOpen(true)}
+                        className="px-4 py-2 rounded-xl bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-amber-400/10"
+                      >
+                        <Handshake className="w-3.5 h-3.5" />
+                        <span>Request Collaboration</span>
+                      </button>
+                    ) : creatorProfile.collaborationInquiry.status === 'PENDING' ? (
+                      creatorProfile.collaborationInquiry.senderId === user?.id ? (
+                        <button
+                          disabled
+                          className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-amber-300/80 text-xs font-semibold flex items-center gap-1.5 cursor-not-allowed opacity-90"
+                          title="Your collaboration inquiry is pending review"
+                        >
+                          <Clock className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Request Pending</span>
+                        </button>
+                      ) : (
+                        <Link
+                          href={`/app/collaborations?inquiryId=${creatorProfile.collaborationInquiry.id}`}
+                          className="px-4 py-2 rounded-xl bg-amber-400 text-black hover:brightness-105 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-amber-400/20"
+                        >
+                          <Handshake className="w-3.5 h-3.5" />
+                          <span>Respond to Inquiry</span>
+                        </Link>
+                      )
+                    ) : creatorProfile.collaborationInquiry.status === 'ACCEPTED' ? (
+                      <button
+                        onClick={() => setIsChatOpen(true)}
+                        className="px-4 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-500/10"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Accepted • Open Chat</span>
+                      </button>
+                    ) : creatorProfile.collaborationInquiry.status === 'DECLINED' ? (
+                      <div className="flex items-center gap-2">
+                        <span className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-gray-400 text-xs font-mono">
+                          Declined
+                        </span>
+                        <button
+                          onClick={() => setIsCollabModalOpen(true)}
+                          className="text-xs text-amber-400 hover:text-amber-300 underline font-medium"
+                        >
+                          Request Again
+                        </button>
+                      </div>
+                    ) : null}
                   </>
                 )}
               </div>
@@ -467,6 +512,32 @@ function PublicCreatorProfileContent() {
           recipientName={creatorProfile.stageName || creatorProfile.user.name}
           isOpen={isCollabModalOpen}
           onClose={() => setIsCollabModalOpen(false)}
+          onSuccess={() => {
+            setCreatorProfile((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    collaborationInquiry: {
+                      id: 'pending-' + Date.now(),
+                      status: 'PENDING',
+                      senderId: user?.id || '',
+                      recipientId: creatorProfile.userId,
+                      message: '',
+                      createdAt: new Date().toISOString(),
+                    },
+                  }
+                : null
+            );
+          }}
+        />
+      )}
+
+      {/* Collaboration Chat Drawer */}
+      {creatorProfile?.collaborationInquiry?.status === 'ACCEPTED' && (
+        <CollaborationChatDrawer
+          inquiryId={creatorProfile.collaborationInquiry.id}
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
         />
       )}
     </div>

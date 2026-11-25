@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { InteractionApiService } from '../services/interaction.service';
 import { CollaborationInquiryItem, InquiryStatus } from '../types/interaction.types';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 import {
   Handshake,
   CheckCircle2,
@@ -23,6 +24,7 @@ interface CollaborationInquiriesListProps {
 }
 
 export function CollaborationInquiriesList({ initialInquiryId }: CollaborationInquiriesListProps = {}) {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'RECEIVED' | 'SENT'>('RECEIVED');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [inquiries, setInquiries] = useState<CollaborationInquiryItem[]>([]);
@@ -30,6 +32,12 @@ export function CollaborationInquiriesList({ initialInquiryId }: CollaborationIn
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [activeChatInquiryId, setActiveChatInquiryId] = useState<string | null>(initialInquiryId || null);
+
+  useEffect(() => {
+    if (user && user.role !== 'CREATOR') {
+      setActiveTab('SENT');
+    }
+  }, [user]);
 
   useEffect(() => {
     if (initialInquiryId) {

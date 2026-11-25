@@ -17,6 +17,7 @@ import {
   Sparkles,
   Lock,
   LogOut,
+  Handshake,
 } from 'lucide-react';
 
 export const AppSidebar: React.FC = () => {
@@ -56,6 +57,7 @@ export const AppSidebar: React.FC = () => {
     { label: 'Feed', href: '/app', icon: Home },
     { label: 'Discover Talent', href: '/app/explore', icon: Compass },
     { label: 'Creator Studio', href: '/app/studio', icon: LayoutDashboard },
+    { label: 'Collaborations', href: '/app/collaborations', icon: Handshake },
     { label: 'Saved Work', href: '/app/saved', icon: Bookmark },
     { label: 'Notifications', href: '/app/notifications', icon: Bell },
     { label: 'Profile', href: '/app/profile', icon: UserIcon },

@@ -89,6 +89,14 @@ export interface FullCreatorProfile {
   followingCount?: number;
   isFollowing?: boolean;
   postCount?: number;
+  collaborationInquiry?: {
+    id: string;
+    status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'WITHDRAWN';
+    senderId: string;
+    recipientId: string;
+    message: string;
+    createdAt: string;
+  } | null;
   user: {
     id: string;
     name: string;

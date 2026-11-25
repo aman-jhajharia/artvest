@@ -685,6 +685,43 @@ export class InteractionService {
       }
     }
 
+    // Check for existing active inquiry between these users (either direction)
+    const existingAccepted = await prisma.collaborationInquiry.findFirst({
+      where: {
+        OR: [
+          { senderId, recipientId: recipientUserId },
+          { senderId: recipientUserId, recipientId: senderId },
+        ],
+        status: InquiryStatus.ACCEPTED,
+      },
+    });
+
+    if (existingAccepted) {
+      throw new AppError(
+        'A collaboration has already been accepted between these users',
+        409,
+        'COLLABORATION_ALREADY_ACCEPTED'
+      );
+    }
+
+    const existingPending = await prisma.collaborationInquiry.findFirst({
+      where: {
+        OR: [
+          { senderId, recipientId: recipientUserId },
+          { senderId: recipientUserId, recipientId: senderId },
+        ],
+        status: InquiryStatus.PENDING,
+      },
+    });
+
+    if (existingPending) {
+      throw new AppError(
+        'A pending collaboration inquiry already exists between these users',
+        409,
+        'INQUIRY_ALREADY_EXISTS'
+      );
+    }
+
     const inquiry = await prisma.collaborationInquiry.create({
       data: {
         senderId,

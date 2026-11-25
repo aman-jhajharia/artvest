@@ -119,9 +119,9 @@ export default function NotificationsPage() {
     // Contextual routing based on resource type
     if (item.type.includes('COLLABORATION')) {
       if (item.resourceId) {
-        router.push(`/app/studio?tab=COLLABORATION&inquiryId=${item.resourceId}`);
+        router.push(`/app/collaborations?inquiryId=${item.resourceId}`);
       } else {
-        router.push('/app/studio?tab=COLLABORATION');
+        router.push('/app/collaborations');
       }
     } else if (item.type === 'CREATOR_FOLLOWED' && item.actorId) {
       router.push(`/app/explore`);

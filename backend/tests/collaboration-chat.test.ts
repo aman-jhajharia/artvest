@@ -12,15 +12,21 @@ describe('ArtVest Collaboration Chat Test Suite', () => {
   let senderUser: { id: string; email: string };
   let recipientUser: { id: string; email: string };
   let thirdPartyUser: { id: string; email: string };
+  let regularUser: { id: string; email: string };
+  let creatorTargetUser: { id: string; email: string };
+  let creatorProfileId: string;
 
   let senderCookie: string;
   let recipientCookie: string;
   let thirdPartyCookie: string;
+  let regularUserCookie: string;
+  let creatorTargetCookie: string;
 
   let pendingInquiryId: string;
   let acceptedInquiryId: string;
   let declinedInquiryId: string;
   let withdrawnInquiryId: string;
+  const createdInquiryIds: string[] = [];
 
   before(async () => {
     // 1. Create test users
@@ -52,9 +58,64 @@ describe('ArtVest Collaboration Chat Test Suite', () => {
       },
     });
 
+    regularUser = await prisma.user.create({
+      data: {
+        email: `chat.regular.${timestamp}@example.com`,
+        name: 'Regular Community User',
+        role: UserRole.USER,
+        isOnboarded: true,
+      },
+    });
+
+    creatorTargetUser = await prisma.user.create({
+      data: {
+        email: `chat.targetcreator.${timestamp}@example.com`,
+        name: 'Target Creator User',
+        role: UserRole.CREATOR,
+        isOnboarded: true,
+      },
+    });
+
+    const category = await prisma.category.findFirst();
+    const targetProfile = await prisma.creatorProfile.create({
+      data: {
+        userId: creatorTargetUser.id,
+        stageName: 'Target Creator',
+        headline: 'Music Producer & Arranger',
+        location: 'Bengaluru, India',
+        primaryCategoryId: category!.id,
+        isPublic: true,
+      },
+    });
+    creatorProfileId = targetProfile.id;
+
     senderCookie = `artvest_session=${AuthService.generateSessionToken({
       userId: senderUser.id,
       email: senderUser.email,
+      role: UserRole.CREATOR,
+    })}`;
+
+    recipientCookie = `artvest_session=${AuthService.generateSessionToken({
+      userId: recipientUser.id,
+      email: recipientUser.email,
+      role: UserRole.CREATOR,
+    })}`;
+
+    thirdPartyCookie = `artvest_session=${AuthService.generateSessionToken({
+      userId: thirdPartyUser.id,
+      email: thirdPartyUser.email,
+      role: UserRole.CREATOR,
+    })}`;
+
+    regularUserCookie = `artvest_session=${AuthService.generateSessionToken({
+      userId: regularUser.id,
+      email: regularUser.email,
+      role: UserRole.USER,
+    })}`;
+
+    creatorTargetCookie = `artvest_session=${AuthService.generateSessionToken({
+      userId: creatorTargetUser.id,
+      email: creatorTargetUser.email,
       role: UserRole.CREATOR,
     })}`;
 
@@ -116,22 +177,27 @@ describe('ArtVest Collaboration Chat Test Suite', () => {
     // Cleanup created test records
     await prisma.notification.deleteMany({
       where: {
-        recipientId: { in: [senderUser.id, recipientUser.id, thirdPartyUser.id] },
+        recipientId: { in: [senderUser.id, recipientUser.id, thirdPartyUser.id, regularUser.id, creatorTargetUser.id] },
       },
     });
     await prisma.collaborationMessage.deleteMany({
       where: {
-        inquiryId: { in: [pendingInquiryId, acceptedInquiryId, declinedInquiryId, withdrawnInquiryId] },
+        inquiryId: { in: [pendingInquiryId, acceptedInquiryId, declinedInquiryId, withdrawnInquiryId, ...createdInquiryIds] },
       },
     });
     await prisma.collaborationInquiry.deleteMany({
       where: {
-        id: { in: [pendingInquiryId, acceptedInquiryId, declinedInquiryId, withdrawnInquiryId] },
+        id: { in: [pendingInquiryId, acceptedInquiryId, declinedInquiryId, withdrawnInquiryId, ...createdInquiryIds] },
+      },
+    });
+    await prisma.creatorProfile.deleteMany({
+      where: {
+        userId: { in: [creatorTargetUser.id] },
       },
     });
     await prisma.user.deleteMany({
       where: {
-        id: { in: [senderUser.id, recipientUser.id, thirdPartyUser.id] },
+        id: { in: [senderUser.id, recipientUser.id, thirdPartyUser.id, regularUser.id, creatorTargetUser.id] },
       },
     });
   });
@@ -309,5 +375,151 @@ describe('ArtVest Collaboration Chat Test Suite', () => {
       },
     });
     assert.equal(notificationsAfterC.length, 2, 'Should create fresh notification once previous notification is read');
+  });
+
+  // 8. Non-Creator Role Access & Duplicate Prevention
+  it('10. Regular user (USER role) can send a collaboration inquiry to a creator', async () => {
+    const res = await request(app)
+      .post('/api/collaboration/inquiries')
+      .set('Cookie', [regularUserCookie])
+      .send({
+        recipientId: creatorTargetUser.id,
+        message: 'Hello, I would love to support and collaborate with your studio!',
+      });
+
+    assert.equal(res.status, 201);
+    assert.equal(res.body.success, true);
+    assert.equal(res.body.data.senderId, regularUser.id);
+    assert.equal(res.body.data.recipientId, creatorTargetUser.id);
+    assert.equal(res.body.data.status, 'PENDING');
+    createdInquiryIds.push(res.body.data.id);
+  });
+
+  it('11. Rejects duplicate collaboration inquiry with 409 INQUIRY_ALREADY_EXISTS when PENDING exists', async () => {
+    // Attempt from regularUser to creatorTargetUser
+    const res1 = await request(app)
+      .post('/api/collaboration/inquiries')
+      .set('Cookie', [regularUserCookie])
+      .send({
+        recipientId: creatorTargetUser.id,
+        message: 'Sending a second request while one is pending',
+      });
+
+    assert.equal(res1.status, 409);
+    assert.equal(res1.body.error?.code, 'INQUIRY_ALREADY_EXISTS');
+
+    // Also rejects reverse direction (creatorTargetUser to regularUser)
+    const res2 = await request(app)
+      .post('/api/collaboration/inquiries')
+      .set('Cookie', [creatorTargetCookie])
+      .send({
+        recipientId: regularUser.id,
+        message: 'Creator trying to send back while pending',
+      });
+
+    assert.equal(res2.status, 409);
+    assert.equal(res2.body.error?.code, 'INQUIRY_ALREADY_EXISTS');
+  });
+
+  it('12. Rejects duplicate collaboration inquiry with 409 COLLABORATION_ALREADY_ACCEPTED when ACCEPTED exists', async () => {
+    // In our test suite, acceptedInquiryId exists between senderUser and recipientUser
+    const res = await request(app)
+      .post('/api/collaboration/inquiries')
+      .set('Cookie', [senderCookie])
+      .send({
+        recipientId: recipientUser.id,
+        message: 'Attempting duplicate request when already accepted',
+      });
+
+    assert.equal(res.status, 409);
+    assert.equal(res.body.error?.code, 'COLLABORATION_ALREADY_ACCEPTED');
+  });
+
+  it('13. Permits re-requesting collaboration if prior inquiry was DECLINED or WITHDRAWN', async () => {
+    // Decline the pending inquiry from test 10
+    const pendingId = createdInquiryIds[0];
+    await prisma.collaborationInquiry.update({
+      where: { id: pendingId },
+      data: { status: InquiryStatus.DECLINED },
+    });
+
+    // regularUser sends a new request
+    const res = await request(app)
+      .post('/api/collaboration/inquiries')
+      .set('Cookie', [regularUserCookie])
+      .send({
+        recipientId: creatorTargetUser.id,
+        message: 'Following up with an updated project proposal!',
+      });
+
+    assert.equal(res.status, 201);
+    assert.equal(res.body.success, true);
+    assert.equal(res.body.data.status, 'PENDING');
+    createdInquiryIds.push(res.body.data.id);
+  });
+
+  it('14. Regular user can list sent inquiries and chat on accepted inquiry', async () => {
+    const latestInquiryId = createdInquiryIds[createdInquiryIds.length - 1];
+    // Accept the inquiry
+    await prisma.collaborationInquiry.update({
+      where: { id: latestInquiryId },
+      data: { status: InquiryStatus.ACCEPTED },
+    });
+
+    // 1. regularUser lists sent inquiries
+    const listRes = await request(app)
+      .get('/api/collaboration/inquiries/sent')
+      .set('Cookie', [regularUserCookie]);
+
+    assert.equal(listRes.status, 200);
+    assert.equal(listRes.body.success, true);
+    assert.ok(Array.isArray(listRes.body.data), 'data should be an array of inquiries');
+    const found = listRes.body.data.find((i: any) => i.id === latestInquiryId);
+    assert.ok(found, 'Sent inquiry should appear in regular user sent list');
+    assert.equal(found.status, 'ACCEPTED');
+
+    // 2. regularUser sends message in chat
+    const msgRes = await request(app)
+      .post(`/api/collaboration/inquiries/${latestInquiryId}/messages`)
+      .set('Cookie', [regularUserCookie])
+      .send({ content: 'Hi! Thrilled our collaboration was accepted.' });
+
+    assert.equal(msgRes.status, 201);
+    assert.equal(msgRes.body.data.content, 'Hi! Thrilled our collaboration was accepted.');
+
+    // 3. creator replies
+    const replyRes = await request(app)
+      .post(`/api/collaboration/inquiries/${latestInquiryId}/messages`)
+      .set('Cookie', [creatorTargetCookie])
+      .send({ content: 'Welcome aboard! Lets get started.' });
+
+    assert.equal(replyRes.status, 201);
+
+    // 4. regularUser reads chat history
+    const historyRes = await request(app)
+      .get(`/api/collaboration/inquiries/${latestInquiryId}/messages`)
+      .set('Cookie', [regularUserCookie]);
+
+    assert.equal(historyRes.status, 200);
+    assert.equal(historyRes.body.data.messages.length, 2);
+  });
+
+  it('15. GET /api/creators/:creatorId returns collaborationInquiry for authenticated requester', async () => {
+    // Authenticated request by regularUser
+    const authRes = await request(app)
+      .get(`/api/creators/${creatorProfileId}`)
+      .set('Cookie', [regularUserCookie]);
+
+    assert.equal(authRes.status, 200);
+    assert.equal(authRes.body.success, true);
+    assert.ok(authRes.body.data.collaborationInquiry, 'collaborationInquiry should be present for logged-in user');
+    assert.equal(authRes.body.data.collaborationInquiry.status, 'ACCEPTED');
+    assert.equal(authRes.body.data.collaborationInquiry.senderId, regularUser.id);
+    assert.equal(authRes.body.data.collaborationInquiry.recipientId, creatorTargetUser.id);
+
+    // Unauthenticated request should have null collaborationInquiry
+    const unauthRes = await request(app).get(`/api/creators/${creatorProfileId}`);
+    assert.equal(unauthRes.status, 200);
+    assert.equal(unauthRes.body.data.collaborationInquiry, null);
   });
 });

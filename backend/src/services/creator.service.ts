@@ -158,8 +158,8 @@ export class CreatorService {
       throw new AppError('This creator profile is private', 403, 'PROFILE_PRIVATE');
     }
 
-    // Fetch real social graph statistics
-    const [followerCount, followingCount, isFollowing, publishedPostCount] = await Promise.all([
+    // Fetch real social graph statistics & collaboration relationship
+    const [followerCount, followingCount, isFollowing, publishedPostCount, latestInquiry] = await Promise.all([
       prisma.follow.count({ where: { followingId: creatorProfile.userId } }),
       prisma.follow.count({ where: { followerId: creatorProfile.userId } }),
       requesterUserId
@@ -177,6 +177,25 @@ export class CreatorService {
       prisma.post.count({
         where: { authorId: creatorProfile.userId, status: 'PUBLISHED' },
       }),
+      requesterUserId
+        ? prisma.collaborationInquiry.findFirst({
+            where: {
+              OR: [
+                { senderId: requesterUserId, recipientId: creatorProfile.userId },
+                { senderId: creatorProfile.userId, recipientId: requesterUserId },
+              ],
+            },
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              status: true,
+              senderId: true,
+              recipientId: true,
+              message: true,
+              createdAt: true,
+            },
+          })
+        : Promise.resolve(null),
     ]);
 
     // Atomically increment view count (fire and forget update)
@@ -193,6 +212,7 @@ export class CreatorService {
       followingCount,
       isFollowing,
       postCount: publishedPostCount,
+      collaborationInquiry: latestInquiry,
       portfolio: (creatorProfile.user.posts || []).map((p: any) => ({
         ...p,
         likeCount: p._count?.likes ?? 0,
