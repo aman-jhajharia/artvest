@@ -19,6 +19,7 @@ import { ExploreEmptyState } from './ExploreEmptyState';
 import { ExploreGridSkeleton } from './ExploreSkeletons';
 import { CollaborateModal } from '@/features/interactions/components/CollaborateModal';
 import { CommentDrawer } from '@/features/interactions/components/CommentDrawer';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 
 export const ExploreView: React.FC = () => {
@@ -26,6 +27,7 @@ export const ExploreView: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
+  const { user } = useAuth();
 
   // Categories & Skills state
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -53,6 +55,7 @@ export const ExploreView: React.FC = () => {
     useState<CreatorDiscoveryItem | null>(null);
   const [selectedPostForComments, setSelectedPostForComments] =
     useState<ShowcaseDiscoveryItem | null>(null);
+  const [collabWarning, setCollabWarning] = useState<string | null>(null);
 
   // Parse filters from URL search params
   const currentFilters: ExploreQueryParams = {
@@ -243,7 +246,18 @@ export const ExploreView: React.FC = () => {
                     <CreatorDiscoveryCard
                       key={creator.id}
                       creator={creator}
-                      onCollaborate={(c) => setSelectedCreatorForCollab(c)}
+                      onCollaborate={(c) => {
+                        if (!user) {
+                          alert('Please log in to collaborate with creators.');
+                          return;
+                        }
+                        if (user.role !== 'CREATOR') {
+                          setCollabWarning('Only artists can collaborate with each other');
+                          setTimeout(() => setCollabWarning(null), 3500);
+                          return;
+                        }
+                        setSelectedCreatorForCollab(c);
+                      }}
                     />
                   ))}
                 </div>
@@ -302,6 +316,13 @@ export const ExploreView: React.FC = () => {
           isOpen={Boolean(selectedPostForComments)}
           onClose={() => setSelectedPostForComments(null)}
         />
+      )}
+      {/* Non-creator collaboration restriction notice */}
+      {collabWarning && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-semibold shadow-2xl backdrop-blur-md flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>{collabWarning}</span>
+        </div>
       )}
     </div>
   );

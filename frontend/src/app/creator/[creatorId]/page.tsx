@@ -47,6 +47,20 @@ function PublicCreatorProfileContent() {
   const [postCount, setPostCount] = useState(0);
   const [isCollabModalOpen, setIsCollabModalOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [collabWarning, setCollabWarning] = useState<string | null>(null);
+
+  const handleCollabClick = () => {
+    if (!user) {
+      alert('Please log in to collaborate with creators.');
+      return;
+    }
+    if (user.role !== 'CREATOR') {
+      setCollabWarning('Only artists can collaborate with each other');
+      setTimeout(() => setCollabWarning(null), 3500);
+      return;
+    }
+    setIsCollabModalOpen(true);
+  };
 
   useEffect(() => {
     if (creatorId) {
@@ -281,6 +295,11 @@ function PublicCreatorProfileContent() {
 
               {/* Collab Capability Callout & Actions */}
               <div className="flex items-center justify-center gap-2">
+                {collabWarning && (
+                  <span className="px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold animate-pulse shadow-md">
+                    {collabWarning}
+                  </span>
+                )}
                 {user?.id !== creatorProfile.userId && (
                   <>
                     <button
@@ -307,7 +326,7 @@ function PublicCreatorProfileContent() {
                     {/* Dynamic Collaboration CTA State */}
                     {!creatorProfile.collaborationInquiry || creatorProfile.collaborationInquiry.status === 'WITHDRAWN' ? (
                       <button
-                        onClick={() => setIsCollabModalOpen(true)}
+                        onClick={handleCollabClick}
                         className="px-4 py-2 rounded-xl bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-amber-400/10"
                       >
                         <Handshake className="w-3.5 h-3.5" />
@@ -346,7 +365,7 @@ function PublicCreatorProfileContent() {
                           Declined
                         </span>
                         <button
-                          onClick={() => setIsCollabModalOpen(true)}
+                          onClick={handleCollabClick}
                           className="text-xs text-amber-400 hover:text-amber-300 underline font-medium"
                         >
                           Request Again

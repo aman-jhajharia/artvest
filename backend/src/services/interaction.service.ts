@@ -1,6 +1,6 @@
 import { prisma } from '../config/database.js';
 import { AppError } from '../utils/apiResponse.js';
-import { PostStatus, InquiryStatus, NotificationType } from '@prisma/client';
+import { PostStatus, InquiryStatus, NotificationType, UserRole } from '@prisma/client';
 import { NotificationService } from './notification.service.js';
 import {
   CreateCommentInput,
@@ -232,6 +232,35 @@ export class InteractionService {
       }),
     ]);
 
+    const authorIds = [...new Set(savedRecords.map((r) => r.post.authorId))].filter((id) => id !== userId);
+    const inquiryMap = new Map<string, any>();
+    if (authorIds.length > 0) {
+      const inquiries = await prisma.collaborationInquiry.findMany({
+        where: {
+          OR: [
+            { senderId: userId, recipientId: { in: authorIds } },
+            { senderId: { in: authorIds }, recipientId: userId },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          status: true,
+          senderId: true,
+          recipientId: true,
+          message: true,
+          createdAt: true,
+        },
+      });
+
+      for (const inq of inquiries) {
+        const otherId = inq.senderId === userId ? inq.recipientId : inq.senderId;
+        if (!inquiryMap.has(otherId)) {
+          inquiryMap.set(otherId, inq);
+        }
+      }
+    }
+
     const posts = savedRecords.map((r) => ({
       ...r.post,
       savedAt: r.createdAt,
@@ -239,6 +268,7 @@ export class InteractionService {
       commentCount: r.post._count.comments,
       saveCount: r.post._count.saves,
       savedByMe: true,
+      collaborationInquiry: r.post.authorId !== userId ? (inquiryMap.get(r.post.authorId) || null) : null,
     }));
 
     return {
@@ -668,6 +698,26 @@ export class InteractionService {
 
     if (senderId === recipientUserId) {
       throw new AppError('You cannot send a collaboration inquiry to yourself', 400, 'CANNOT_INQUIRE_SELF');
+    }
+
+    // Artist-to-Artist Invariant: Both sender and recipient must have CREATOR role
+    const [sender, recipient] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: senderId },
+        select: { role: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: recipientUserId },
+        select: { role: true },
+      }),
+    ]);
+
+    if (sender?.role !== UserRole.CREATOR || recipient?.role !== UserRole.CREATOR) {
+      throw new AppError(
+        'Only artists can collaborate with each other',
+        403,
+        'CREATOR_ONLY_COLLABORATION'
+      );
     }
 
     if (input.postId) {

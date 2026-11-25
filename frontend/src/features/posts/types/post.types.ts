@@ -77,6 +77,12 @@ export interface PostItem {
   likedByMe?: boolean;
   savedByMe?: boolean;
   followingCreator?: boolean;
+  collaborationInquiry?: {
+    id: string;
+    status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'WITHDRAWN';
+    senderId: string;
+    recipientId: string;
+  } | null;
 }
 
 export interface CreatePostPayload {

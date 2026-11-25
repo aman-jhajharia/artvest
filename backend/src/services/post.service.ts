@@ -131,12 +131,47 @@ export class PostService {
   }
 
   /**
+   * Fetches the latest collaboration inquiry between the current user and post authors.
+   */
+  public static async fetchInquiryMapForPosts(currentUserId: string | undefined, posts: any[]): Promise<Map<string, any>> {
+    const inquiryMap = new Map<string, any>();
+    if (!currentUserId || !posts || posts.length === 0) return inquiryMap;
+    const authorIds = [...new Set(posts.map((p) => p.authorId))].filter((id) => id && id !== currentUserId);
+    if (authorIds.length === 0) return inquiryMap;
+
+    const inquiries = await prisma.collaborationInquiry.findMany({
+      where: {
+        OR: [
+          { senderId: currentUserId, recipientId: { in: authorIds } },
+          { senderId: { in: authorIds }, recipientId: currentUserId },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, status: true, senderId: true, recipientId: true, message: true, createdAt: true },
+    });
+
+    for (const inq of inquiries) {
+      const otherId = inq.senderId === currentUserId ? inq.recipientId : inq.senderId;
+      if (!inquiryMap.has(otherId)) {
+        inquiryMap.set(otherId, inq);
+      }
+    }
+
+    return inquiryMap;
+  }
+
+  /**
    * Transforms post with interaction metrics and current viewer states.
    */
-  public static formatPostWithInteractions(post: any, currentUserId?: string) {
+  public static formatPostWithInteractions(post: any, currentUserId?: string, inquiryMap?: Map<string, any>) {
     const { likes, saves, _count, author, ...rest } = post;
     const authorFollowers = author?.followers;
     const { followers, ...cleanAuthor } = author || {};
+
+    const authorId = post.authorId;
+    const collabInquiry = currentUserId && authorId && authorId !== currentUserId && inquiryMap
+      ? (inquiryMap.get(authorId) || null)
+      : (post.collaborationInquiry !== undefined ? post.collaborationInquiry : null);
 
     return {
       ...rest,
@@ -147,6 +182,7 @@ export class PostService {
       likedByMe: Boolean(currentUserId && Array.isArray(likes) && likes.length > 0),
       savedByMe: Boolean(currentUserId && Array.isArray(saves) && saves.length > 0),
       followingCreator: Boolean(currentUserId && Array.isArray(authorFollowers) && authorFollowers.length > 0),
+      collaborationInquiry: collabInquiry,
     };
   }
 
@@ -226,7 +262,8 @@ export class PostService {
         .catch(() => {});
     }
 
-    return this.formatPostWithInteractions(post, requesterUserId);
+    const inquiryMap = await this.fetchInquiryMapForPosts(requesterUserId, [post]);
+    return this.formatPostWithInteractions(post, requesterUserId, inquiryMap);
   }
 
   /**
@@ -622,8 +659,10 @@ export class PostService {
       prisma.post.count({ where: whereClause }),
     ]);
 
+    const inquiryMap = await this.fetchInquiryMapForPosts(requesterUserId, posts);
+
     return {
-      posts: posts.map((p) => this.formatPostWithInteractions(p, requesterUserId)),
+      posts: posts.map((p) => this.formatPostWithInteractions(p, requesterUserId, inquiryMap)),
       pagination: {
         page,
         limit,
@@ -718,8 +757,10 @@ export class PostService {
       prisma.post.count({ where: whereClause }),
     ]);
 
+    const inquiryMap = await this.fetchInquiryMapForPosts(currentUserId, posts);
+
     return {
-      posts: posts.map((p) => this.formatPostWithInteractions(p, currentUserId)),
+      posts: posts.map((p) => this.formatPostWithInteractions(p, currentUserId, inquiryMap)),
       pagination: {
         page: query.page,
         limit: query.limit,

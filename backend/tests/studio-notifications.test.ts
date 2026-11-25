@@ -35,6 +35,7 @@ describe('ArtVest Phase 6 - Creator Studio & Notifications Test Suite', () => {
   let postBId: string;
   let inquiryId: string;
   let notificationForCreatorAId: string;
+  let declinePartnerUserId: string | null = null;
 
   before(async () => {
     // 1. Ensure category
@@ -209,6 +210,7 @@ describe('ArtVest Phase 6 - Creator Studio & Notifications Test Suite', () => {
   after(async () => {
     // Teardown test entities
     const allUserIds = [creatorAUserId, creatorBUserId, regularUserId, emptyCreatorUserId];
+    if (declinePartnerUserId) allUserIds.push(declinePartnerUserId);
     await prisma.notification.deleteMany({
       where: {
         OR: [
@@ -339,7 +341,7 @@ describe('ArtVest Phase 6 - Creator Studio & Notifications Test Suite', () => {
   it('5. Collaboration inquiry generates notification for recipient', async () => {
     const res = await request(app)
       .post('/api/collaboration/inquiries')
-      .set('Cookie', [regularUserCookie])
+      .set('Cookie', [creatorBCookie])
       .send({
         recipientId: creatorAProfileId,
         postId: postA1Id,
@@ -352,7 +354,7 @@ describe('ArtVest Phase 6 - Creator Studio & Notifications Test Suite', () => {
     const notification = await prisma.notification.findFirst({
       where: {
         recipientId: creatorAUserId,
-        actorId: regularUserId,
+        actorId: creatorBUserId,
         type: NotificationType.COLLABORATION_INQUIRY_CREATED,
         resourceId: inquiryId,
       },
@@ -371,7 +373,7 @@ describe('ArtVest Phase 6 - Creator Studio & Notifications Test Suite', () => {
 
     const notification = await prisma.notification.findFirst({
       where: {
-        recipientId: regularUserId,
+        recipientId: creatorBUserId,
         actorId: creatorAUserId,
         type: NotificationType.COLLABORATION_ACCEPTED,
         resourceId: inquiryId,
@@ -382,30 +384,55 @@ describe('ArtVest Phase 6 - Creator Studio & Notifications Test Suite', () => {
   });
 
   it('7. Collaboration decline generates notification for sender', async () => {
-    // Create second inquiry to decline
+    // Create dedicated partner to decline without polluting empty creator
+    const declinePartner = await prisma.user.create({
+      data: {
+        email: `studio.decline.${Date.now()}@example.com`,
+        name: 'Decline Partner',
+        role: UserRole.CREATOR,
+        isOnboarded: true,
+      },
+    });
+    declinePartnerUserId = declinePartner.id;
+    const declinePartnerProfile = await prisma.creatorProfile.create({
+      data: {
+        userId: declinePartner.id,
+        stageName: 'Decline Partner Studio',
+        location: 'Pune, India',
+        primaryCategoryId: categoryId,
+        isPublic: true,
+      },
+    });
+    const declinePartnerCookie = `artvest_session=${AuthService.generateSessionToken({
+      userId: declinePartner.id,
+      email: declinePartner.email,
+      role: declinePartner.role,
+    })}`;
+
+    // Creator B sends inquiry to Decline Partner
     const inqRes = await request(app)
       .post('/api/collaboration/inquiries')
-      .set('Cookie', [regularUserCookie])
+      .set('Cookie', [creatorBCookie])
       .send({
-        recipientId: creatorBProfileId,
-        postId: postBId,
+        recipientId: declinePartnerProfile.id,
+        postId: postA1Id,
         message: 'Music composing request',
       });
     assert.equal(inqRes.status, 201);
     const inq2Id = inqRes.body.data.id;
 
-    // Decline by Creator B
+    // Decline by Decline Partner
     const decRes = await request(app)
       .patch(`/api/collaboration/inquiries/${inq2Id}`)
-      .set('Cookie', [creatorBCookie])
+      .set('Cookie', [declinePartnerCookie])
       .send({ status: InquiryStatus.DECLINED });
 
     assert.equal(decRes.status, 200);
 
     const notification = await prisma.notification.findFirst({
       where: {
-        recipientId: regularUserId,
-        actorId: creatorBUserId,
+        recipientId: creatorBUserId,
+        actorId: declinePartner.id,
         type: NotificationType.COLLABORATION_DECLINED,
         resourceId: inq2Id,
       },
@@ -457,10 +484,10 @@ describe('ArtVest Phase 6 - Creator Studio & Notifications Test Suite', () => {
   });
 
   it('12. Unread count calculates real database unread notifications accurately', async () => {
-    // Regular user has 2 notifications (ACCEPTED and DECLINED)
+    // Creator B has 2 notifications (ACCEPTED and DECLINED)
     const unreadRes = await request(app)
       .get('/api/notifications/unread-count')
-      .set('Cookie', [regularUserCookie]);
+      .set('Cookie', [creatorBCookie]);
 
     assert.equal(unreadRes.status, 200);
     assert.equal(unreadRes.body.data.unreadCount, 2);
@@ -469,7 +496,7 @@ describe('ArtVest Phase 6 - Creator Studio & Notifications Test Suite', () => {
   it('13. Pagination works correctly on notification list', async () => {
     const res = await request(app)
       .get('/api/notifications?page=1&limit=1')
-      .set('Cookie', [regularUserCookie]);
+      .set('Cookie', [creatorBCookie]);
 
     assert.equal(res.status, 200);
     assert.equal(res.body.data.length, 1);

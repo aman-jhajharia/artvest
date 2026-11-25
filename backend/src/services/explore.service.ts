@@ -509,12 +509,39 @@ export class ExploreService {
     const startIndex = (page - 1) * limit;
     const paginatedItems = scoredPosts.slice(startIndex, startIndex + limit);
 
+    const authorIds = [...new Set(paginatedItems.map(({ post }) => post.authorId))].filter(
+      (id) => id && id !== currentUserId
+    );
+    const inquiryMap = new Map<string, any>();
+    if (currentUserId && authorIds.length > 0) {
+      const inquiries = await prisma.collaborationInquiry.findMany({
+        where: {
+          OR: [
+            { senderId: currentUserId, recipientId: { in: authorIds } },
+            { senderId: { in: authorIds }, recipientId: currentUserId },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, status: true, senderId: true, recipientId: true, message: true, createdAt: true },
+      });
+      for (const inq of inquiries) {
+        const otherId = inq.senderId === currentUserId ? inq.recipientId : inq.senderId;
+        if (!inquiryMap.has(otherId)) {
+          inquiryMap.set(otherId, inq);
+        }
+      }
+    }
+
     const items = paginatedItems.map(({ post, relevanceScore, scoreBreakdown }) => {
       const likedByMe = currentUserId ? Boolean(post.likes && post.likes.length > 0) : false;
       const savedByMe = currentUserId ? Boolean(post.saves && post.saves.length > 0) : false;
       const followingCreator = currentUserId
         ? Boolean(post.author.followers && post.author.followers.length > 0)
         : false;
+      const collaborationInquiry =
+        currentUserId && post.authorId !== currentUserId
+          ? inquiryMap.get(post.authorId) || null
+          : null;
 
       return {
         id: post.id,
@@ -546,6 +573,7 @@ export class ExploreService {
         followingCreator,
         relevanceScore,
         scoreBreakdown,
+        collaborationInquiry,
       };
     });
 

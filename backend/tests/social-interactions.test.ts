@@ -26,6 +26,7 @@ describe('ArtVest Phase 4 - Social Graph & Creative Interaction Test Suite', () 
   let thirdUserToken: string;
   let thirdUserCookie: string;
   let thirdUserId: string;
+  let thirdProfileId: string;
 
   let categoryId: string;
   let testPublishedPostId: string;
@@ -127,16 +128,28 @@ describe('ArtVest Phase 4 - Social Graph & Creative Interaction Test Suite', () 
     });
     userCookie = `artvest_session=${userToken}`;
 
-    // 5. Create third user for unauthorized mutation tests
+    // 5. Create third creator for unauthorized mutation and distinct inquiry tests
     const thirdUser = await prisma.user.create({
       data: {
         email: `p4.third.${Date.now()}@example.com`,
         name: 'Third Bystander',
-        role: UserRole.USER,
+        role: UserRole.CREATOR,
         isOnboarded: true,
       },
     });
     thirdUserId = thirdUser.id;
+
+    const thirdProf = await prisma.creatorProfile.create({
+      data: {
+        userId: thirdUserId,
+        stageName: 'Third Studio',
+        headline: 'Creative Sculptor',
+        location: 'Delhi, India',
+        primaryCategoryId: categoryId,
+        isPublic: true,
+      },
+    });
+    thirdProfileId = thirdProf.id;
 
     thirdUserToken = AuthService.generateSessionToken({
       userId: thirdUser.id,
@@ -588,10 +601,25 @@ describe('ArtVest Phase 4 - Social Graph & Creative Interaction Test Suite', () 
   // SECTION 5: COLLABORATION INQUIRIES
   // ==========================================
 
-  it('29. User can send a structured collaboration inquiry referencing a post', async () => {
+  it('29. Non-creator cannot send a collaboration inquiry (403 CREATOR_ONLY_COLLABORATION)', async () => {
     const res = await request(app)
       .post('/api/collaboration/inquiries')
       .set('Cookie', [userCookie])
+      .send({
+        recipientId: creatorProfileId,
+        postId: testPublishedPostId,
+        message: 'Patron trying to collaborate.',
+      });
+
+    assert.equal(res.status, 403);
+    assert.equal(res.body.error?.code, 'CREATOR_ONLY_COLLABORATION');
+    assert.equal(res.body.message, 'Only artists can collaborate with each other');
+  });
+
+  it('29b. Creator can send a structured collaboration inquiry referencing a post', async () => {
+    const res = await request(app)
+      .post('/api/collaboration/inquiries')
+      .set('Cookie', [otherCreatorCookie])
       .send({
         recipientId: creatorProfileId,
         postId: testPublishedPostId,
@@ -601,7 +629,7 @@ describe('ArtVest Phase 4 - Social Graph & Creative Interaction Test Suite', () 
     assert.equal(res.status, 201);
     assert.equal(res.body.success, true);
     assert.ok(res.body.data.id);
-    assert.equal(res.body.data.senderId, regularUserId);
+    assert.equal(res.body.data.senderId, otherCreatorUserId);
     assert.equal(res.body.data.recipientId, creatorUserId);
     assert.equal(res.body.data.postId, testPublishedPostId);
     assert.equal(res.body.data.status, InquiryStatus.PENDING);
@@ -625,7 +653,7 @@ describe('ArtVest Phase 4 - Social Graph & Creative Interaction Test Suite', () 
   it('31. Collaboration inquiry referencing an unpublished draft post is rejected (400)', async () => {
     const res = await request(app)
       .post('/api/collaboration/inquiries')
-      .set('Cookie', [userCookie])
+      .set('Cookie', [otherCreatorCookie])
       .send({
         recipientId: creatorProfileId,
         postId: testDraftPostId,
@@ -639,7 +667,7 @@ describe('ArtVest Phase 4 - Social Graph & Creative Interaction Test Suite', () 
   it('32. Sender can view inquiry in their sent inquiries list', async () => {
     const res = await request(app)
       .get('/api/collaboration/inquiries/sent')
-      .set('Cookie', [userCookie]);
+      .set('Cookie', [otherCreatorCookie]);
 
     assert.equal(res.status, 200);
     assert.ok(Array.isArray(res.body.data));
@@ -663,7 +691,7 @@ describe('ArtVest Phase 4 - Social Graph & Creative Interaction Test Suite', () 
   it('34. Sender cannot accept their own inquiry (403 Forbidden)', async () => {
     const res = await request(app)
       .patch(`/api/collaboration/inquiries/${testInquiryId}`)
-      .set('Cookie', [userCookie])
+      .set('Cookie', [otherCreatorCookie])
       .send({
         status: InquiryStatus.ACCEPTED,
       });
@@ -700,7 +728,7 @@ describe('ArtVest Phase 4 - Social Graph & Creative Interaction Test Suite', () 
   it('37. Changing status of already accepted inquiry is rejected with 400', async () => {
     const res = await request(app)
       .patch(`/api/collaboration/inquiries/${testInquiryId}`)
-      .set('Cookie', [userCookie])
+      .set('Cookie', [otherCreatorCookie])
       .send({
         status: InquiryStatus.WITHDRAWN,
       });
@@ -710,13 +738,13 @@ describe('ArtVest Phase 4 - Social Graph & Creative Interaction Test Suite', () 
   });
 
   it('38. Sender can withdraw their own pending inquiry', async () => {
-    // Create new inquiry to test withdraw
+    // Create new inquiry from third creator to creator to test withdraw
     const newInquiry = await request(app)
       .post('/api/collaboration/inquiries')
-      .set('Cookie', [userCookie])
+      .set('Cookie', [thirdUserCookie])
       .send({
-        recipientId: otherCreatorProfileId,
-        message: 'Would love to discuss composing music for a video project.',
+        recipientId: creatorProfileId,
+        message: 'Would love to discuss sculpting for a video project.',
       });
 
     assert.equal(newInquiry.status, 201);
@@ -725,7 +753,7 @@ describe('ArtVest Phase 4 - Social Graph & Creative Interaction Test Suite', () 
     // Sender withdraws
     const withdrawRes = await request(app)
       .patch(`/api/collaboration/inquiries/${inqId}`)
-      .set('Cookie', [userCookie])
+      .set('Cookie', [thirdUserCookie])
       .send({
         status: InquiryStatus.WITHDRAWN,
       });
@@ -735,13 +763,13 @@ describe('ArtVest Phase 4 - Social Graph & Creative Interaction Test Suite', () 
   });
 
   it('39. Recipient can decline a pending inquiry', async () => {
-    // Create new inquiry to test decline
+    // Create new inquiry from third creator to other creator to test decline
     const newInquiry = await request(app)
       .post('/api/collaboration/inquiries')
       .set('Cookie', [thirdUserCookie])
       .send({
-        recipientId: creatorProfileId,
-        message: 'Looking for a DP on our weekend music video.',
+        recipientId: otherCreatorProfileId,
+        message: 'Looking for music composition on a new piece.',
       });
 
     assert.equal(newInquiry.status, 201);
@@ -750,7 +778,7 @@ describe('ArtVest Phase 4 - Social Graph & Creative Interaction Test Suite', () 
     // Recipient declines
     const declineRes = await request(app)
       .patch(`/api/collaboration/inquiries/${inqId}`)
-      .set('Cookie', [creatorCookie])
+      .set('Cookie', [otherCreatorCookie])
       .send({
         status: InquiryStatus.DECLINED,
       });
