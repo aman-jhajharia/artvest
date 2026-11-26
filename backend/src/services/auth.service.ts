@@ -95,7 +95,7 @@ export class AuthService {
     let isNewUser = false;
 
     if (!user) {
-      // Register new user with default USER role and isOnboarded=false
+      // Register new user with default USER role, 10,000 demo ArtCredits, and isOnboarded=false
       user = await prisma.user.create({
         data: {
           googleId: googleProfile.googleId,
@@ -104,6 +104,16 @@ export class AuthService {
           avatarUrl: googleProfile.avatarUrl,
           role: UserRole.USER,
           isOnboarded: false,
+          creditBalance: 10000,
+        },
+      });
+      await prisma.creditTransaction.create({
+        data: {
+          userId: user.id,
+          amount: 10000,
+          balanceAfter: 10000,
+          type: 'SIGNUP_BONUS',
+          description: 'Welcome bonus: 10,000 demo ArtCredits',
         },
       });
       isNewUser = true;
@@ -136,6 +146,7 @@ export class AuthService {
       avatarUrl: user.avatarUrl,
       role: user.role,
       isOnboarded: user.isOnboarded,
+      creditBalance: user.creditBalance,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
@@ -177,6 +188,7 @@ export class AuthService {
         avatarUrl: true,
         role: true,
         isOnboarded: true,
+        creditBalance: true,
         createdAt: true,
         updatedAt: true,
         profile: true,

@@ -18,6 +18,8 @@ import {
   Clock,
   ArrowRight,
   Filter,
+  Coins,
+  Trophy,
 } from 'lucide-react';
 
 export default function NotificationsPage() {
@@ -125,6 +127,12 @@ export default function NotificationsPage() {
       }
     } else if (item.type === 'CREATOR_FOLLOWED' && item.actorId) {
       router.push(`/app/explore`);
+    } else if (item.type === 'PROJECT_BACKED' || item.type === 'PROJECT_FUNDED' || item.resourceType === 'PROJECT') {
+      if (item.resourceId) {
+        router.push(`/app/projects?projectId=${item.resourceId}`);
+      } else {
+        router.push('/app/projects');
+      }
     } else if (item.resourceId && item.resourceType === 'POST') {
       router.push('/app');
     }
@@ -192,6 +200,18 @@ export default function NotificationsPage() {
           icon: XCircle,
           badgeColor: 'bg-red-500/20 text-red-400 border-red-500/30',
           dotColor: 'bg-red-400',
+        };
+      case 'PROJECT_BACKED':
+        return {
+          icon: Coins,
+          badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+          dotColor: 'bg-amber-400',
+        };
+      case 'PROJECT_FUNDED':
+        return {
+          icon: Trophy,
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+          dotColor: 'bg-emerald-400',
         };
       default:
         return {

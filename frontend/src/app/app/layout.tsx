@@ -69,8 +69,8 @@ export default function AppLayout({
           </div>
           <div className="flex items-center gap-3 text-xs">
             <a href="/app" className="text-gray-300 hover:text-white">Feed</a>
-            <a href="/app/explore" className="text-amber-400 font-medium">Explore</a>
-            <a href="/app/studio" className="text-indigo-400">Studio</a>
+            <a href="/app/projects" className="text-amber-400 font-medium">Projects</a>
+            <a href="/app/wallet" className="text-indigo-400">Wallet</a>
           </div>
         </header>
 

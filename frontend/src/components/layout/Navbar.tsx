@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Sparkles, Compass, User, LayoutDashboard, LogIn } from 'lucide-react';
+import { Sparkles, Compass, User, LayoutDashboard, LogIn, FolderGit2 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   return (
@@ -37,6 +37,13 @@ export const Navbar: React.FC = () => {
           >
             <Compass className="w-4 h-4 text-amber-400" />
             Discover Talent
+          </Link>
+          <Link
+            href="/app/projects"
+            className="text-sm font-medium text-gray-300 hover:text-white transition-colors flex items-center gap-1.5"
+          >
+            <FolderGit2 className="w-4 h-4 text-amber-400" />
+            Projects
           </Link>
           <Link
             href="/app/studio"

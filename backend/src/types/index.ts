@@ -37,6 +37,7 @@ export interface SafeUser {
   avatarUrl: string | null;
   role: UserRole;
   isOnboarded: boolean;
+  creditBalance: number;
   createdAt: Date;
   updatedAt: Date;
 }

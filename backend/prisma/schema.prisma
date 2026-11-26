@@ -70,6 +70,22 @@ enum NotificationType {
   FOLLOW
   SYSTEM
   COLLAB_INTEREST
+  PROJECT_BACKED
+  PROJECT_FUNDED
+}
+
+enum ProjectStatus {
+  OPEN
+  FUNDED
+  COMPLETED
+  CANCELLED
+}
+
+enum CreditTransactionType {
+  SIGNUP_BONUS
+  DEMO_TOPUP
+  PROJECT_INVESTMENT
+  PROJECT_FUNDING_RECEIVED
 }
 
 enum ReportTargetType {
@@ -104,12 +120,18 @@ model User {
   avatarUrl             String?
   role                  UserRole          @default(USER)
   isOnboarded           Boolean           @default(false)
+  creditBalance         Int               @default(10000)
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 
   // Profile relations
   profile               UserProfile?
   creatorProfile        CreatorProfile?
+
+  // Creative Projects & Investments
+  createdProjects       CreativeProject[] @relation("CreatorProjects")
+  projectInvestments    ProjectInvestment[] @relation("UserInvestments")
+  creditTransactions    CreditTransaction[] @relation("UserCreditTransactions")
 
   // Social relations
   posts                 Post[]
@@ -208,6 +230,7 @@ model Category {
   skills          Skill[]
   creatorProfiles CreatorProfile[]
   posts           Post[]
+  projects        CreativeProject[]
 
   @@index([slug])
 }
@@ -452,4 +475,69 @@ model Report {
 
   @@index([targetType, targetId])
   @@index([status])
+}
+
+// ==========================================
+// CREATIVE PROJECTS & FRACTIONAL BACKING
+// ==========================================
+
+model CreativeProject {
+  id              String            @id @default(cuid())
+  creatorId       String
+  title           String
+  description     String
+  categoryId      String?
+  coverMediaUrl   String?
+  fundingGoal     Int               // Virtual ArtCredits target, strictly >= 500 and % 500 === 0
+  amountRaised    Int               @default(0)
+  totalShares     Int               @default(10000) // Configurable total share pool representing 100%
+  sharesAllocated Int               @default(0)
+  status          ProjectStatus     @default(OPEN)
+  deadline        DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  creator         User              @relation("CreatorProjects", fields: [creatorId], references: [id], onDelete: Cascade)
+  category        Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  investments     ProjectInvestment[]
+
+  @@index([creatorId])
+  @@index([status])
+  @@index([categoryId])
+  @@index([createdAt])
+}
+
+model ProjectInvestment {
+  id              String           @id @default(cuid())
+  projectId       String
+  investorId      String
+  creditsInvested Int              @default(0)
+  sharesAcquired  Int              @default(0)
+  sharePercentage Float            @default(0.0) // Cached fractional share (sharesAcquired / totalShares * 100)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  project         CreativeProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  investor        User             @relation("UserInvestments", fields: [investorId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, investorId])
+  @@index([investorId])
+  @@index([projectId])
+}
+
+model CreditTransaction {
+  id              String                 @id @default(cuid())
+  userId          String
+  amount          Int                    // Positive (credit) or negative (debit)
+  balanceAfter    Int
+  type            CreditTransactionType
+  referenceId     String?                // e.g. projectId, investmentId
+  description     String
+  createdAt       DateTime               @default(now())
+
+  user            User                   @relation("UserCreditTransactions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
 }

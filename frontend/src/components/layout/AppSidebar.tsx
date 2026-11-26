@@ -18,6 +18,8 @@ import {
   Lock,
   LogOut,
   Handshake,
+  Coins,
+  Wallet,
 } from 'lucide-react';
 
 export const AppSidebar: React.FC = () => {
@@ -56,6 +58,8 @@ export const AppSidebar: React.FC = () => {
   const navItems = [
     { label: 'Feed', href: '/app', icon: Home },
     { label: 'Discover Talent', href: '/app/explore', icon: Compass },
+    { label: 'Creative Projects', href: '/app/projects', icon: FolderGit2 },
+    { label: 'Portfolio & Wallet', href: '/app/wallet', icon: Wallet },
     { label: 'Creator Studio', href: '/app/studio', icon: LayoutDashboard },
     { label: 'Collaborations', href: '/app/collaborations', icon: Handshake },
     { label: 'Saved Work', href: '/app/saved', icon: Bookmark },
@@ -119,25 +123,29 @@ export const AppSidebar: React.FC = () => {
           </Link>
         </div>
 
-        {/* Phase 2 Feature: Creative Projects */}
-        <div className="mt-6 pt-5 border-t border-white/10 px-1">
-          <div className="flex items-center justify-between text-[11px] uppercase tracking-wider font-semibold text-gray-400 mb-2">
-            <span>Upcoming</span>
-            <span className="text-[10px] bg-white/5 text-gray-400 px-1.5 py-0.5 rounded border border-white/10">
-              Soon
-            </span>
-          </div>
-
-          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-xs text-gray-400">
-            <div className="flex items-center gap-2 text-gray-300 font-medium mb-1">
-              <FolderGit2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Creative Projects</span>
-              <Lock className="w-3 h-3 text-gray-500 ml-auto" />
+        {/* Live Demo ArtCredits Pill */}
+        <div className="mt-5 pt-4 border-t border-white/10 px-1">
+          <Link
+            href="/app/wallet"
+            className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-500/10 to-indigo-500/10 border border-amber-400/20 hover:border-amber-400/40 transition-all group"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-amber-400 text-black flex items-center justify-center font-bold shadow-sm shadow-amber-500/20">
+                <Coins className="w-4 h-4 font-bold" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400 block tracking-wider leading-none mb-1">
+                  Demo Balance
+                </span>
+                <span className="text-xs font-bold text-white font-mono group-hover:text-amber-300 transition-colors">
+                  {(user?.creditBalance ?? 10000).toLocaleString()} AC
+                </span>
+              </div>
             </div>
-            <p className="text-[11px] text-gray-400 leading-normal">
-              Community-backed project teams & virtual credit wallets.
-            </p>
-          </div>
+            <span className="text-[10px] font-semibold text-amber-400 group-hover:translate-x-0.5 transition-transform">
+              Wallet &rarr;
+            </span>
+          </Link>
         </div>
       </div>
 

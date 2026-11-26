@@ -18,6 +18,7 @@ export interface User {
   avatarUrl?: string;
   role: UserRole;
   isOnboarded: boolean;
+  creditBalance?: number;
 }
 
 export interface CreatorSkill {
@@ -96,4 +97,102 @@ export interface ApiResponse<T = unknown> {
     details?: unknown;
   };
   timestamp: string;
+}
+
+export type ProjectStatus = 'OPEN' | 'FUNDED' | 'COMPLETED' | 'CANCELLED';
+
+export type CreditTransactionType =
+  | 'SIGNUP_BONUS'
+  | 'DEMO_TOPUP'
+  | 'PROJECT_INVESTMENT'
+  | 'PROJECT_FUNDING_RECEIVED';
+
+export interface ProjectCapTableEntry {
+  investorId: string;
+  name: string;
+  avatarUrl?: string | null;
+  creditsInvested: number;
+  sharesAcquired: number;
+  sharePercentage: number;
+  createdAt: string;
+}
+
+export interface CreativeProjectItem {
+  id: string;
+  creatorId: string;
+  title: string;
+  description: string;
+  categoryId?: string | null;
+  category?: Category | null;
+  coverMediaUrl?: string | null;
+  fundingGoal: number;
+  amountRaised: number;
+  totalShares: number;
+  sharesAllocated: number;
+  status: ProjectStatus;
+  deadline?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  creator?: {
+    id: string;
+    name: string;
+    avatarUrl?: string | null;
+    creatorProfile?: {
+      stageName?: string | null;
+      headline?: string | null;
+      location?: string | null;
+      isVerified?: boolean;
+    } | null;
+  } | null;
+  backersCount: number;
+  fundingProgressPercentage: number;
+  remainingGap: number;
+  sharePrice: number;
+  capTable?: ProjectCapTableEntry[];
+  currentUserInvestment?: {
+    creditsInvested: number;
+    sharesAcquired: number;
+    sharePercentage: number;
+  } | null;
+}
+
+export interface CreditTransactionItem {
+  id: string;
+  userId: string;
+  amount: number;
+  balanceAfter: number;
+  type: CreditTransactionType;
+  referenceId?: string | null;
+  description: string;
+  createdAt: string;
+}
+
+export interface PortfolioItem {
+  investmentId: string;
+  projectId: string;
+  projectTitle: string;
+  projectStatus: ProjectStatus;
+  coverMediaUrl?: string | null;
+  category?: {
+    name: string;
+    slug: string;
+  } | null;
+  creator?: {
+    id: string;
+    name: string;
+    avatarUrl?: string | null;
+  } | null;
+  creditsInvested: number;
+  sharesAcquired: number;
+  sharePercentage: number;
+  fundingProgressPercentage: number;
+  updatedAt: string;
+}
+
+export interface WalletData {
+  creditBalance: number;
+  totalInvestedCredits: number;
+  activeHoldingsCount: number;
+  portfolio: PortfolioItem[];
+  transactions: CreditTransactionItem[];
 }

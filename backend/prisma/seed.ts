@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, ExperienceLevel, AvailabilityStatus, PostType, PostStatus, MediaType, InquiryStatus, NotificationType } from '@prisma/client';
+import { PrismaClient, UserRole, ExperienceLevel, AvailabilityStatus, PostType, PostStatus, MediaType, InquiryStatus, NotificationType, ProjectStatus, CreditTransactionType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -682,6 +682,252 @@ async function main() {
   });
 
   console.log('✓ Collaboration inquiries & notifications seeded.');
+
+  console.log('--- Seeding Creative Projects & Fractional Investments ---');
+
+  // Ensure initial credit balances for users
+  await prisma.user.update({
+    where: { id: userAanya.id },
+    data: { creditBalance: 35000 },
+  });
+  await prisma.user.update({
+    where: { id: userKabir.id },
+    data: { creditBalance: 50000 },
+  });
+  await prisma.user.update({
+    where: { id: userRhea.id },
+    data: { creditBalance: 20000 },
+  });
+  await prisma.user.update({
+    where: { id: userRohan.id },
+    data: { creditBalance: 15000 },
+  });
+  await prisma.user.update({
+    where: { id: userMeera.id },
+    data: { creditBalance: 25000 },
+  });
+
+  // Project 1: Dhwani: Acoustic Heritage EP (Aanya - Music)
+  const project1 = await prisma.creativeProject.upsert({
+    where: { id: 'seed_proj_dhwani' },
+    update: {
+      fundingGoal: 15000,
+      amountRaised: 4500,
+      sharesAllocated: 3000,
+      status: ProjectStatus.OPEN,
+    },
+    create: {
+      id: 'seed_proj_dhwani',
+      creatorId: userAanya.id,
+      title: 'Dhwani: Acoustic Heritage EP',
+      description: 'An acoustic folk-classical fusion studio recording blending Rajasthani desert ragas with modern cello arrangements and ambient percussion.',
+      categoryId: categoryMap.get('music'),
+      fundingGoal: 15000,
+      totalShares: 10000,
+      amountRaised: 4500,
+      sharesAllocated: 3000,
+      status: ProjectStatus.OPEN,
+      coverMediaUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800',
+    },
+  });
+
+  // Project 1 Investments
+  await prisma.projectInvestment.upsert({
+    where: {
+      projectId_investorId: {
+        projectId: project1.id,
+        investorId: userRohan.id,
+      },
+    },
+    update: {
+      creditsInvested: 3000,
+      sharesAcquired: 2000,
+      sharePercentage: 20.0,
+    },
+    create: {
+      projectId: project1.id,
+      investorId: userRohan.id,
+      creditsInvested: 3000,
+      sharesAcquired: 2000,
+      sharePercentage: 20.0,
+    },
+  });
+
+  await prisma.projectInvestment.upsert({
+    where: {
+      projectId_investorId: {
+        projectId: project1.id,
+        investorId: userMeera.id,
+      },
+    },
+    update: {
+      creditsInvested: 1500,
+      sharesAcquired: 1000,
+      sharePercentage: 10.0,
+    },
+    create: {
+      projectId: project1.id,
+      investorId: userMeera.id,
+      creditsInvested: 1500,
+      sharesAcquired: 1000,
+      sharePercentage: 10.0,
+    },
+  });
+
+  // Project 2: Shadows of the Thar: 4K Indie Doc (Kabir - Film)
+  const project2 = await prisma.creativeProject.upsert({
+    where: { id: 'seed_proj_thar' },
+    update: {
+      fundingGoal: 25000,
+      amountRaised: 25000,
+      sharesAllocated: 10000,
+      status: ProjectStatus.FUNDED,
+    },
+    create: {
+      id: 'seed_proj_thar',
+      creatorId: userKabir.id,
+      title: 'Shadows of the Thar: 4K Indie Doc',
+      description: 'A poetic cinematic docu-feature capturing the nomadic bard tribes of the Great Indian Desert and their centuries-old oral balladry traditions.',
+      categoryId: categoryMap.get('film-acting'),
+      fundingGoal: 25000,
+      totalShares: 10000,
+      amountRaised: 25000,
+      sharesAllocated: 10000,
+      status: ProjectStatus.FUNDED,
+      coverMediaUrl: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800',
+    },
+  });
+
+  // Project 2 Investments (100% funded)
+  await prisma.projectInvestment.upsert({
+    where: {
+      projectId_investorId: {
+        projectId: project2.id,
+        investorId: userRohan.id,
+      },
+    },
+    update: {
+      creditsInvested: 15000,
+      sharesAcquired: 6000,
+      sharePercentage: 60.0,
+    },
+    create: {
+      projectId: project2.id,
+      investorId: userRohan.id,
+      creditsInvested: 15000,
+      sharesAcquired: 6000,
+      sharePercentage: 60.0,
+    },
+  });
+
+  await prisma.projectInvestment.upsert({
+    where: {
+      projectId_investorId: {
+        projectId: project2.id,
+        investorId: userMeera.id,
+      },
+    },
+    update: {
+      creditsInvested: 10000,
+      sharesAcquired: 4000,
+      sharePercentage: 40.0,
+    },
+    create: {
+      projectId: project2.id,
+      investorId: userMeera.id,
+      creditsInvested: 10000,
+      sharesAcquired: 4000,
+      sharePercentage: 40.0,
+    },
+  });
+
+  // Project 3: Natyam Fusion: Contemporary Indian Dance Suite (Rhea - Dance)
+  const project3 = await prisma.creativeProject.upsert({
+    where: { id: 'seed_proj_natyam' },
+    update: {
+      fundingGoal: 10000,
+      amountRaised: 2000,
+      sharesAllocated: 2000,
+      status: ProjectStatus.OPEN,
+    },
+    create: {
+      id: 'seed_proj_natyam',
+      creatorId: userRhea.id,
+      title: 'Natyam Fusion: Contemporary Dance Suite',
+      description: 'A multi-city performance piece fusing classical Bharatanatyam mudras with electronic sound design and kinetic projection mapping.',
+      categoryId: categoryMap.get('dance'),
+      fundingGoal: 10000,
+      totalShares: 10000,
+      amountRaised: 2000,
+      sharesAllocated: 2000,
+      status: ProjectStatus.OPEN,
+      coverMediaUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=800',
+    },
+  });
+
+  await prisma.projectInvestment.upsert({
+    where: {
+      projectId_investorId: {
+        projectId: project3.id,
+        investorId: userRohan.id,
+      },
+    },
+    update: {
+      creditsInvested: 2000,
+      sharesAcquired: 2000,
+      sharePercentage: 20.0,
+    },
+    create: {
+      projectId: project3.id,
+      investorId: userRohan.id,
+      creditsInvested: 2000,
+      sharesAcquired: 2000,
+      sharePercentage: 20.0,
+    },
+  });
+
+  // Credit Transactions
+  await prisma.creditTransaction.upsert({
+    where: { id: 'seed_tx_rohan_signup' },
+    update: {},
+    create: {
+      id: 'seed_tx_rohan_signup',
+      userId: userRohan.id,
+      amount: 10000,
+      balanceAfter: 10000,
+      type: CreditTransactionType.SIGNUP_BONUS,
+      description: 'Welcome bonus: 10,000 demo ArtCredits',
+    },
+  });
+
+  await prisma.creditTransaction.upsert({
+    where: { id: 'seed_tx_rohan_topup' },
+    update: {},
+    create: {
+      id: 'seed_tx_rohan_topup',
+      userId: userRohan.id,
+      amount: 5000,
+      balanceAfter: 15000,
+      type: CreditTransactionType.DEMO_TOPUP,
+      description: 'Demo faucet grant: +5,000 virtual ArtCredits',
+    },
+  });
+
+  await prisma.creditTransaction.upsert({
+    where: { id: 'seed_tx_kabir_funded' },
+    update: {},
+    create: {
+      id: 'seed_tx_kabir_funded',
+      userId: userKabir.id,
+      amount: 25000,
+      balanceAfter: 50000,
+      type: CreditTransactionType.PROJECT_FUNDING_RECEIVED,
+      referenceId: project2.id,
+      description: 'Project fully funded: "Shadows of the Thar" received 25,000 AC',
+    },
+  });
+
+  console.log('✓ Creative projects & fractional investments seeded.');
   console.log('========================================================');
   console.log('ArtVest Complete Demo Ecosystem Seeded Successfully!');
   console.log('Demo Creator Accounts:');

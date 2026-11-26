@@ -10,7 +10,9 @@ export type NotificationType =
   | 'COMMENT'
   | 'FOLLOW'
   | 'SYSTEM'
-  | 'COLLAB_INTEREST';
+  | 'COLLAB_INTEREST'
+  | 'PROJECT_BACKED'
+  | 'PROJECT_FUNDED';
 
 export interface NotificationActor {
   id: string;

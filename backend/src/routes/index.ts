@@ -12,6 +12,8 @@ import { collaborationRoutes } from './collaboration.routes.js';
 import { exploreRoutes } from './explore.routes.js';
 import { notificationRoutes } from './notification.routes.js';
 import { studioRoutes } from './studio.routes.js';
+import { projectRoutes } from './project.routes.js';
+import { walletRoutes } from './wallet.routes.js';
 import { TaxonomyController } from '../controllers/taxonomy.controller.js';
 import { CreatorController } from '../controllers/creator.controller.js';
 import { PostController } from '../controllers/post.controller.js';
@@ -34,6 +36,8 @@ router.use('/collaboration', collaborationRoutes);
 router.use('/explore', exploreRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/studio', studioRoutes);
+router.use('/projects', projectRoutes);
+router.use('/wallet', walletRoutes);
 
 // Public creator profile and showcase discovery
 router.get('/creators/:creatorId', optionalAuth, CreatorController.getPublicProfile);
