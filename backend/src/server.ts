@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { config } from './config/index.js';
 import { logger } from './utils/logger.js';
 import { prisma } from './config/database.js';
+import { ProjectService } from './services/project.service.js';
 
 const app = createApp();
 
@@ -13,9 +14,33 @@ const server = app.listen(config.port, '0.0.0.0', () => {
   logger.info(`===============================================`);
 });
 
+// Periodic background sweep for expired pitches (runs every 60 seconds)
+let isSweeping = false;
+let sweepInterval: NodeJS.Timeout | null = null;
+
+if (process.env.NODE_ENV !== 'test') {
+  sweepInterval = setInterval(async () => {
+    if (isSweeping) return;
+    isSweeping = true;
+    try {
+      await ProjectService.sweepExpiredProjects();
+    } catch (err) {
+      logger.error('Error during periodic expired project sweep:', err);
+    } finally {
+      isSweeping = false;
+    }
+  }, 60000);
+  sweepInterval.unref();
+}
+
 // Graceful shutdown handling
 async function gracefulShutdown(signal: string) {
   logger.info(`Received ${signal}. Starting graceful shutdown...`);
+
+  if (sweepInterval) {
+    clearInterval(sweepInterval);
+    sweepInterval = null;
+  }
 
   server.close(async () => {
     logger.info('HTTP server closed.');

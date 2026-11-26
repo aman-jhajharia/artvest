@@ -4,7 +4,8 @@ import React, { useState, useId } from 'react';
 import { CreativeProjectItem } from '@/types';
 import { ProjectApiService } from '../services/project.service';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { X, Sparkles, AlertCircle, CheckCircle2, Coins, ArrowRight, Loader2, ShieldCheck, Lock } from 'lucide-react';
+import { X, Sparkles, AlertCircle, CheckCircle2, Coins, ArrowRight, Loader2, ShieldCheck, Lock, Clock } from 'lucide-react';
+import { getDeadlineInfo } from '../utils/deadline';
 
 interface InvestProjectModalProps {
   project: CreativeProjectItem;
@@ -31,6 +32,9 @@ export const InvestProjectModal: React.FC<InvestProjectModalProps> = ({
   const userBalance = user?.creditBalance ?? 0;
   const remainingGap = project.remainingGap;
 
+  const deadlineInfo = getDeadlineInfo(project.deadline);
+  const isDeadlineExpired = deadlineInfo?.isExpired ?? false;
+
   // Validation rules
   const isMultipleOf500 = amount > 0 && amount % 500 === 0;
   const isAtLeast500 = amount >= 500;
@@ -43,7 +47,8 @@ export const InvestProjectModal: React.FC<InvestProjectModalProps> = ({
     isMultipleOf500 &&
     hasSufficientBalance &&
     isWithinGap &&
-    !isCreatorSelfInvest;
+    !isCreatorSelfInvest &&
+    !isDeadlineExpired;
 
   // Share calculation preview
   const estimatedShares =
@@ -179,7 +184,28 @@ export const InvestProjectModal: React.FC<InvestProjectModalProps> = ({
                 </span>
               ) : null}
             </div>
+            {deadlineInfo && (
+              <div className="col-span-2 flex items-center justify-between text-[11px] pt-2 border-t border-white/5">
+                <span className="text-gray-400 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  Funding Deadline
+                </span>
+                <span className={`font-mono font-semibold ${isDeadlineExpired ? 'text-red-400' : 'text-amber-300'}`}>
+                  {isDeadlineExpired ? 'Expired' : deadlineInfo.label} ({deadlineInfo.formattedDate})
+                </span>
+              </div>
+            )}
           </div>
+
+          {/* Deadline Expired Warning */}
+          {isDeadlineExpired && (
+            <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-300 flex items-center gap-2">
+              <Clock className="w-4 h-4 shrink-0 text-red-400" />
+              <span>
+                The funding deadline for this pitch expired on {deadlineInfo?.formattedDate}. No further investments are accepted.
+              </span>
+            </div>
+          )}
 
           {/* Amount Input */}
           <div className="space-y-2">

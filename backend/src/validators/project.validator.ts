@@ -29,11 +29,11 @@ export const CreateProjectSchema = z.object({
   categoryId: z.string().trim().cuid('Invalid category ID').optional().nullable(),
   coverMediaUrl: z.string().trim().url('Cover media must be a valid URL').optional().nullable(),
   deadline: z
-    .string()
-    .datetime({ offset: true })
-    .optional()
-    .nullable()
-    .or(z.date().optional().nullable()),
+    .string({ required_error: 'Funding deadline is required' })
+    .datetime({ message: 'Invalid deadline format' })
+    .refine((val) => new Date(val).getTime() > Date.now(), {
+      message: 'Funding deadline must be in the future',
+    }),
 });
 
 export type CreateProjectInput = z.infer<typeof CreateProjectSchema>;

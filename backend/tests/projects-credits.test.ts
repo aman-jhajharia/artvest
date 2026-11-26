@@ -4,6 +4,7 @@ import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/config/database.js';
 import { AuthService } from '../src/services/auth.service.js';
+import { ProjectService } from '../src/services/project.service.js';
 import { UserRole, ProjectStatus, CreditTransactionType, InvestmentStatus } from '@prisma/client';
 
 const app = createApp();
@@ -24,6 +25,8 @@ describe('ArtCredits & Fractional Project Backing (IPO Escrow Hold Model) Test S
   let categoryId: string;
   let testProjectId: string;
   let cancelProjectId: string;
+  let expiredProjectId: string;
+  let sweepProjectId: string;
 
   before(async () => {
     // 1. Ensure a category exists
@@ -112,7 +115,7 @@ describe('ArtCredits & Fractional Project Backing (IPO Escrow Hold Model) Test S
   after(async () => {
     // Clean up test data
     try {
-      const pIds = [testProjectId, cancelProjectId].filter(Boolean);
+      const pIds = [testProjectId, cancelProjectId, expiredProjectId, sweepProjectId].filter(Boolean);
       if (pIds.length > 0) {
         await prisma.projectInvestment.deleteMany({ where: { projectId: { in: pIds } } });
         await prisma.creativeProject.deleteMany({ where: { id: { in: pIds } } });
@@ -164,6 +167,7 @@ describe('ArtCredits & Fractional Project Backing (IPO Escrow Hold Model) Test S
         title: 'Unauthorized Project',
         description: 'Trying to create without creator role',
         fundingGoal: 5000,
+        deadline: new Date(Date.now() + 86400000).toISOString(),
       });
 
     assert.equal(res.status, 403);
@@ -177,6 +181,7 @@ describe('ArtCredits & Fractional Project Backing (IPO Escrow Hold Model) Test S
         title: 'Odd Goal Project',
         description: 'Funding goal not divisible by 500',
         fundingGoal: 750,
+        deadline: new Date(Date.now() + 86400000).toISOString(),
       });
 
     assert.equal(res.status, 400);
@@ -192,6 +197,7 @@ describe('ArtCredits & Fractional Project Backing (IPO Escrow Hold Model) Test S
         fundingGoal: 5000,
         totalShares: 10000,
         categoryId,
+        deadline: new Date(Date.now() + 86400000 * 7).toISOString(),
       });
 
     assert.equal(res.status, 201);
@@ -429,6 +435,7 @@ describe('ArtCredits & Fractional Project Backing (IPO Escrow Hold Model) Test S
         description: 'Testing hold release on pitch cancellation.',
         fundingGoal: 5000,
         categoryId,
+        deadline: new Date(Date.now() + 86400000 * 7).toISOString(),
       });
 
     assert.equal(projRes.status, 201);
@@ -543,5 +550,150 @@ describe('ArtCredits & Fractional Project Backing (IPO Escrow Hold Model) Test S
     );
     assert.ok(res.body.data.portfolio.length >= 1);
     assert.ok(res.body.data.portfolio[0].status);
+  });
+
+  // 16. Rejection of past deadline on project creation
+  it('rejects project creation if funding deadline is in the past (HTTP 400)', async () => {
+    const pastDate = new Date(Date.now() - 3600000).toISOString();
+    const res = await request(app)
+      .post('/api/projects')
+      .set('Cookie', creatorCookie)
+      .send({
+        title: 'Past Deadline Pitch',
+        description: 'Should fail validation due to past deadline.',
+        fundingGoal: 5000,
+        categoryId,
+        deadline: pastDate,
+      });
+
+    assert.equal(res.status, 400);
+  });
+
+  // 17. Rejection of investment when deadline has passed
+  it('blocks investment after deadline has passed (HTTP 400 PROJECT_DEADLINE_EXPIRED)', async () => {
+    // Create an open project with an already passed deadline directly
+    const expiredProject = await prisma.creativeProject.create({
+      data: {
+        creatorId: creatorUserId,
+        title: 'Expired Deadline Pitch',
+        description: 'Testing investment rejection on expired project.',
+        fundingGoal: 5000,
+        totalShares: 10000,
+        categoryId,
+        deadline: new Date(Date.now() - 60000), // 1 minute ago
+        status: ProjectStatus.OPEN,
+      },
+    });
+    expiredProjectId = expiredProject.id;
+
+    const res = await request(app)
+      .post(`/api/projects/${expiredProjectId}/invest`)
+      .set('Cookie', regularUserCookie)
+      .send({ amount: 500 });
+
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error.code, 'PROJECT_DEADLINE_EXPIRED');
+
+    // Confirm that project has been transitioned to CANCELLED by the on-access expiry
+    const checkProject = await prisma.creativeProject.findUnique({ where: { id: expiredProjectId } });
+    assert.equal(checkProject?.status, ProjectStatus.CANCELLED);
+  });
+
+  // 18. Automatic escrow refund & notifications on periodic / on-access sweep
+  it('automatically cancels expired unfunded project, refunds held balances, and notifies backers + creator', async () => {
+    // 1. Create a project with future deadline
+    const sweepProject = await prisma.creativeProject.create({
+      data: {
+        creatorId: creatorUserId,
+        title: 'Auto Sweep EP',
+        description: 'Testing automatic escrow refund upon deadline sweep.',
+        fundingGoal: 5000,
+        totalShares: 10000,
+        categoryId,
+        deadline: new Date(Date.now() + 3600000), // 1 hour in future
+        status: ProjectStatus.OPEN,
+      },
+    });
+    sweepProjectId = sweepProject.id;
+
+    // 2. Backer 1 pledges 1,500 AC
+    const b1Start = await prisma.user.findUnique({ where: { id: regularUserId } });
+    const b1StartBal = b1Start!.creditBalance;
+
+    await request(app)
+      .post(`/api/projects/${sweepProjectId}/invest`)
+      .set('Cookie', regularUserCookie)
+      .send({ amount: 1500 });
+
+    // 3. Backer 2 pledges 1,000 AC
+    const b2Start = await prisma.user.findUnique({ where: { id: secondUserId } });
+    const b2StartBal = b2Start!.creditBalance;
+
+    await request(app)
+      .post(`/api/projects/${sweepProjectId}/invest`)
+      .set('Cookie', secondUserCookie)
+      .send({ amount: 1000 });
+
+    // Verify both are held
+    const b1Held = await prisma.user.findUnique({ where: { id: regularUserId } });
+    assert.equal(b1Held?.heldBalance, 1500);
+    assert.equal(b1Held?.creditBalance, b1StartBal - 1500);
+
+    const b2Held = await prisma.user.findUnique({ where: { id: secondUserId } });
+    assert.equal(b2Held?.heldBalance, 1000);
+    assert.equal(b2Held?.creditBalance, b2StartBal - 1000);
+
+    // 4. Force deadline into past (simulate passage of time)
+    await prisma.creativeProject.update({
+      where: { id: sweepProjectId },
+      data: { deadline: new Date(Date.now() - 10000) },
+    });
+
+    // 5. Trigger sweep (Layer 1 or Layer 2 sweep)
+    const sweepResults = await ProjectService.sweepExpiredProjects();
+    assert.ok(sweepResults.length >= 1);
+
+    // 6. Verify Project is CANCELLED
+    const sweptProj = await prisma.creativeProject.findUnique({ where: { id: sweepProjectId } });
+    assert.equal(sweptProj?.status, ProjectStatus.CANCELLED);
+
+    // 7. Verify Backer 1 refund
+    const b1Refunded = await prisma.user.findUnique({ where: { id: regularUserId } });
+    assert.equal(b1Refunded?.heldBalance, 0);
+    assert.equal(b1Refunded?.creditBalance, b1StartBal);
+
+    // 8. Verify Backer 2 refund
+    const b2Refunded = await prisma.user.findUnique({ where: { id: secondUserId } });
+    assert.equal(b2Refunded?.heldBalance, 0);
+    assert.equal(b2Refunded?.creditBalance, b2StartBal);
+
+    // 9. Verify investment records marked RELEASED
+    const investments = await prisma.projectInvestment.findMany({ where: { projectId: sweepProjectId } });
+    assert.equal(investments.length, 2);
+    assert.equal(investments[0].status, InvestmentStatus.RELEASED);
+    assert.equal(investments[1].status, InvestmentStatus.RELEASED);
+
+    // 10. Verify audit ledger entries
+    const txRecords = await prisma.creditTransaction.findMany({
+      where: { referenceId: sweepProjectId, type: CreditTransactionType.INVESTMENT_RELEASED },
+    });
+    assert.equal(txRecords.length, 2);
+
+    // 11. Verify notifications for backers and creator
+    const notifs = await prisma.notification.findMany({
+      where: { resourceId: sweepProjectId },
+    });
+    assert.ok(notifs.length >= 3); // 2 backers + 1 creator
+  });
+
+  // 19. Concurrency & Idempotency check for expiration
+  it('ensures running expireUnfundedProject multiple times is strictly idempotent', async () => {
+    // Calling expireUnfundedProject on an already CANCELLED/expired project
+    const rerun = await ProjectService.expireUnfundedProject(sweepProjectId);
+    assert.equal(rerun.expired, false);
+
+    // Backer balances must remain intact
+    const b1Check = await prisma.user.findUnique({ where: { id: regularUserId } });
+    assert.equal(b1Check?.heldBalance, 0);
   });
 });

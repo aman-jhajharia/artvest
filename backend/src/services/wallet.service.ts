@@ -1,5 +1,6 @@
 import { prisma } from '../config/database.js';
 import { AppError } from '../utils/apiResponse.js';
+import { ProjectService } from './project.service.js';
 
 export class WalletService {
   /**
@@ -7,6 +8,9 @@ export class WalletService {
    * investment portfolio with share percentages and hold/allotment status, and audit ledger.
    */
   public static async getWallet(userId: string) {
+    // Layer 1: Lazy sweep of any expired open pitches
+    await ProjectService.sweepExpiredProjects();
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {

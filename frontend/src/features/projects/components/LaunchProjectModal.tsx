@@ -70,6 +70,11 @@ export const LaunchProjectModal: React.FC<LaunchProjectModalProps> = ({
       return;
     }
 
+    if (!deadline || new Date(deadline).getTime() <= Date.now()) {
+      setErrorMessage('Funding cutoff deadline is required and must be in the future.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await ProjectApiService.createProject({
@@ -79,7 +84,7 @@ export const LaunchProjectModal: React.FC<LaunchProjectModalProps> = ({
         totalShares,
         categoryId: categoryId || null,
         coverMediaUrl: coverMediaUrl.trim() || null,
-        deadline: deadline ? new Date(deadline).toISOString() : null,
+        deadline: new Date(deadline).toISOString(),
       });
 
       if (res.success) {
@@ -209,13 +214,21 @@ export const LaunchProjectModal: React.FC<LaunchProjectModalProps> = ({
 
           {/* Deadline */}
           <div className="space-y-1.5">
-            <label className="font-semibold text-gray-300 block">Target Funding Deadline (Optional)</label>
+            <div className="flex items-center justify-between">
+              <label className="font-semibold text-gray-300 block">Funding Cutoff Deadline</label>
+              <span className="text-[11px] text-amber-400 font-medium">Exact date & time required</span>
+            </div>
             <input
-              type="date"
+              type="datetime-local"
+              required
+              min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
               className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-amber-400"
             />
+            <p className="text-[11px] text-gray-400">
+              Pledges automatically refund if 100% goal is not met by this exact time.
+            </p>
           </div>
 
           {/* Validation Feedback */}

@@ -708,6 +708,7 @@ async function main() {
   });
 
   // Project 1: Dhwani: Acoustic Heritage EP (Aanya - Music)
+  const futureDeadline1 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   const project1 = await prisma.creativeProject.upsert({
     where: { id: 'seed_proj_dhwani' },
     update: {
@@ -715,6 +716,7 @@ async function main() {
       amountRaised: 4500,
       sharesAllocated: 3000,
       status: ProjectStatus.OPEN,
+      deadline: futureDeadline1,
     },
     create: {
       id: 'seed_proj_dhwani',
@@ -727,6 +729,7 @@ async function main() {
       amountRaised: 4500,
       sharesAllocated: 3000,
       status: ProjectStatus.OPEN,
+      deadline: futureDeadline1,
       coverMediaUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800',
     },
   });
@@ -850,6 +853,7 @@ async function main() {
   });
 
   // Project 3: Natyam Fusion: Contemporary Indian Dance Suite (Rhea - Dance)
+  const futureDeadline3 = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000);
   const project3 = await prisma.creativeProject.upsert({
     where: { id: 'seed_proj_natyam' },
     update: {
@@ -857,6 +861,7 @@ async function main() {
       amountRaised: 2000,
       sharesAllocated: 2000,
       status: ProjectStatus.OPEN,
+      deadline: futureDeadline3,
     },
     create: {
       id: 'seed_proj_natyam',
@@ -869,6 +874,7 @@ async function main() {
       amountRaised: 2000,
       sharesAllocated: 2000,
       status: ProjectStatus.OPEN,
+      deadline: futureDeadline3,
       coverMediaUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=800',
     },
   });

@@ -19,7 +19,9 @@ import {
   Loader2,
   Lock,
   AlertTriangle,
+  Clock,
 } from 'lucide-react';
+import { getDeadlineInfo } from '../utils/deadline';
 
 interface ProjectDetailsModalProps {
   projectId: string | null;
@@ -220,6 +222,22 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                     </span>
                   </div>
                 </div>
+
+                {project.deadline && (() => {
+                  const dInfo = getDeadlineInfo(project.deadline);
+                  if (!dInfo) return null;
+                  return (
+                    <div className="flex items-center justify-between pt-2 border-t border-white/5 text-[11px]">
+                      <span className="text-gray-400 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-400" />
+                        Target Funding Deadline:
+                      </span>
+                      <span className={`font-mono font-bold ${dInfo.isExpired ? 'text-red-400' : 'text-amber-300'}`}>
+                        {dInfo.isExpired ? 'Expired' : dInfo.label} ({dInfo.formattedDate})
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Description */}
@@ -379,14 +397,27 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
               <div className="space-y-3 pt-2">
                 {project.status === 'OPEN' ? (
                   <>
-                    <button
-                      onClick={() => setIsInvestModalOpen(true)}
-                      className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.01]"
-                    >
-                      <Coins className="w-4 h-4 font-bold" />
-                      <span>Back This Pitch (In Multiples of 500 AC)</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
+                    {(() => {
+                      const dInfo = getDeadlineInfo(project.deadline);
+                      if (dInfo?.isExpired) {
+                        return (
+                          <div className="p-3 text-center rounded-xl bg-red-500/10 border border-red-500/20 text-xs font-semibold text-red-300 flex items-center justify-center gap-2">
+                            <Clock className="w-4 h-4 text-red-400" />
+                            <span>Funding deadline expired on {dInfo.formattedDate}. Backing is closed.</span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <button
+                          onClick={() => setIsInvestModalOpen(true)}
+                          className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.01]"
+                        >
+                          <Coins className="w-4 h-4 font-bold" />
+                          <span>Back This Pitch (In Multiples of 500 AC)</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      );
+                    })()}
 
                     {/* Creator cancel pitch controls */}
                     {user?.id === project.creatorId && (

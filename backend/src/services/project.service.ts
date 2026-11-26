@@ -36,6 +36,9 @@ export class ProjectService {
       ];
     }
 
+    // Layer 1: Lazy on-access sweep of any expired open pitches
+    await this.sweepExpiredProjects();
+
     const [projects, total] = await Promise.all([
       prisma.creativeProject.findMany({
         where,
@@ -111,7 +114,7 @@ export class ProjectService {
    * Get project details with creator profile, live cap table, and caller's holding.
    */
   public static async getProjectById(projectId: string, currentUserId?: string) {
-    const project = await prisma.creativeProject.findUnique({
+    let project = await prisma.creativeProject.findUnique({
       where: { id: projectId },
       include: {
         category: true,
@@ -148,6 +151,54 @@ export class ProjectService {
 
     if (!project) {
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // Layer 1: Lazy check if this specific project has expired
+    if (
+      project.status === ProjectStatus.OPEN &&
+      project.deadline &&
+      new Date() >= project.deadline &&
+      project.amountRaised < project.fundingGoal
+    ) {
+      await this.expireUnfundedProject(projectId);
+      // Re-fetch project to present updated CANCELLED status and released cap table
+      const refetched = await prisma.creativeProject.findUnique({
+        where: { id: projectId },
+        include: {
+          category: true,
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              avatarUrl: true,
+              creatorProfile: {
+                select: {
+                  stageName: true,
+                  headline: true,
+                  location: true,
+                  isVerified: true,
+                },
+              },
+            },
+          },
+          investments: {
+            orderBy: { creditsInvested: 'desc' },
+            take: 50,
+            include: {
+              investor: {
+                select: {
+                  id: true,
+                  name: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      if (refetched) {
+        project = refetched;
+      }
     }
 
     const progressPercent = Number(((project.amountRaised / project.fundingGoal) * 100).toFixed(2));
@@ -193,6 +244,14 @@ export class ProjectService {
    */
   public static async createProject(creatorId: string, input: CreateProjectInput) {
     const { title, description, fundingGoal, totalShares = 10000, categoryId, coverMediaUrl, deadline } = input;
+
+    if (!deadline || new Date(deadline).getTime() <= Date.now()) {
+      throw new AppError(
+        'Project funding deadline must be a valid date and time in the future',
+        400,
+        'INVALID_DEADLINE'
+      );
+    }
 
     if (fundingGoal < 500 || fundingGoal % 500 !== 0) {
       throw new AppError(
@@ -252,6 +311,23 @@ export class ProjectService {
       );
     }
 
+    // Invariant: Pre-check funding deadline and sweep if expired
+    const existing = await prisma.creativeProject.findUnique({
+      where: { id: projectId },
+      select: { status: true, deadline: true, amountRaised: true, fundingGoal: true },
+    });
+
+    if (existing && existing.deadline && new Date() >= existing.deadline) {
+      if (existing.status === ProjectStatus.OPEN && existing.amountRaised < existing.fundingGoal) {
+        await this.expireUnfundedProject(projectId);
+      }
+      throw new AppError(
+        'The funding deadline for this creative pitch has passed',
+        400,
+        'PROJECT_DEADLINE_EXPIRED'
+      );
+    }
+
     // 2. Atomic Ledger Transaction
     const txResult = await prisma.$transaction(async (tx) => {
       // Fresh row reads inside transaction
@@ -283,6 +359,15 @@ export class ProjectService {
           'This project is not open for investment',
           400,
           'PROJECT_NOT_OPEN'
+        );
+      }
+
+      // Invariant: Funding deadline check
+      if (project.deadline && new Date() >= project.deadline) {
+        throw new AppError(
+          'The funding deadline for this creative pitch has passed',
+          400,
+          'PROJECT_DEADLINE_EXPIRED'
         );
       }
 
@@ -586,5 +671,147 @@ export class ProjectService {
     }
 
     return cancelResult;
+  }
+
+  /**
+   * Idempotently expires an open project that missed its deadline without reaching 100% funding goal.
+   * Atomically releases all backer escrow holds back to available creditBalance and logs notifications.
+   */
+  public static async expireUnfundedProject(projectId: string) {
+    const expireResult = await prisma.$transaction(async (tx) => {
+      const project = await tx.creativeProject.findUnique({
+        where: { id: projectId },
+        include: {
+          creator: { select: { id: true, name: true } },
+        },
+      });
+
+      if (!project || project.status !== ProjectStatus.OPEN) {
+        return { expired: false, project, heldPledges: [] };
+      }
+
+      if (!project.deadline || new Date() < project.deadline) {
+        return { expired: false, project, heldPledges: [] };
+      }
+
+      if (project.amountRaised >= project.fundingGoal) {
+        return { expired: false, project, heldPledges: [] };
+      }
+
+      // 1. Fetch all pledges currently on hold
+      const heldPledges = await tx.projectInvestment.findMany({
+        where: {
+          projectId,
+          status: InvestmentStatus.HELD,
+        },
+      });
+
+      // 2. Release hold for each backer
+      for (const pledge of heldPledges) {
+        const releasedUser = await tx.user.update({
+          where: { id: pledge.investorId },
+          data: {
+            creditBalance: { increment: pledge.creditsInvested },
+            heldBalance: { decrement: pledge.creditsInvested },
+          },
+        });
+
+        await tx.projectInvestment.update({
+          where: { id: pledge.id },
+          data: { status: InvestmentStatus.RELEASED },
+        });
+
+        await tx.creditTransaction.create({
+          data: {
+            userId: pledge.investorId,
+            amount: pledge.creditsInvested,
+            balanceAfter: releasedUser.creditBalance,
+            type: CreditTransactionType.INVESTMENT_RELEASED,
+            referenceId: projectId,
+            description: `Escrow hold released: "${project.title}" cancelled (funding deadline expired before reaching 100% goal). +${pledge.creditsInvested} AC returned to available balance`,
+          },
+        });
+      }
+
+      // 3. Mark project cancelled
+      const updatedProject = await tx.creativeProject.update({
+        where: { id: projectId },
+        data: { status: ProjectStatus.CANCELLED },
+      });
+
+      return {
+        expired: true,
+        project: updatedProject,
+        heldPledges,
+      };
+    });
+
+    if (expireResult.expired && expireResult.project) {
+      const project = expireResult.project;
+
+      // Notify all backers
+      for (const pledge of expireResult.heldPledges) {
+        try {
+          await NotificationService.createNotification({
+            recipientId: pledge.investorId,
+            actorId: project.creatorId,
+            type: NotificationType.SYSTEM,
+            title: 'Project Cancelled - Funding Deadline Expired',
+            message: `"${project.title}" was cancelled because it did not reach 100% of its funding goal by its deadline. Your ${pledge.creditsInvested} AC held in escrow has been released back to your available balance.`,
+            resourceId: projectId,
+            resourceType: 'PROJECT',
+          });
+        } catch {
+          // Ignore notification errors
+        }
+      }
+
+      // Notify creator
+      try {
+        await NotificationService.createNotification({
+          recipientId: project.creatorId,
+          actorId: project.creatorId,
+          type: NotificationType.SYSTEM,
+          title: 'Project Pitch Expired & Cancelled',
+          message: `Your project "${project.title}" was cancelled because it did not reach 100% of its funding goal by its deadline. All backer escrow holds have been released.`,
+          resourceId: projectId,
+          resourceType: 'PROJECT',
+        });
+      } catch {
+        // Ignore notification errors
+      }
+    }
+
+    return expireResult;
+  }
+
+  /**
+   * Sweeps all open projects past their deadline that failed to reach 100% funding goal.
+   */
+  public static async sweepExpiredProjects() {
+    const overdueProjects = await prisma.creativeProject.findMany({
+      where: {
+        status: ProjectStatus.OPEN,
+        deadline: {
+          not: null,
+          lte: new Date(),
+        },
+      },
+      select: {
+        id: true,
+        amountRaised: true,
+        fundingGoal: true,
+      },
+    });
+
+    const results = [];
+    for (const p of overdueProjects) {
+      if (p.amountRaised < p.fundingGoal) {
+        const res = await this.expireUnfundedProject(p.id);
+        results.push(res);
+      }
+    }
+
+    return results;
   }
 }

@@ -22,7 +22,9 @@ import {
   ShieldCheck,
   ArrowRight,
   Loader2,
+  Clock,
 } from 'lucide-react';
+import { getDeadlineInfo } from '@/features/projects/utils/deadline';
 
 function ProjectsContent() {
   const { user } = useAuth();
@@ -264,11 +266,26 @@ function ProjectsContent() {
                     <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/80 backdrop-blur-md text-black font-mono flex items-center gap-1">
                       <CheckCircle className="w-3 h-3" /> Funded
                     </span>
-                  ) : (
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-indigo-500/80 backdrop-blur-md text-white font-mono">
-                      Open
+                  ) : project.status === 'CANCELLED' ? (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-gray-500/80 backdrop-blur-md text-white font-mono">
+                      Cancelled
                     </span>
-                  )}
+                  ) : (() => {
+                      const dInfo = getDeadlineInfo(project.deadline);
+                      if (dInfo?.isExpired) {
+                        return (
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-red-500/80 backdrop-blur-md text-white font-mono">
+                            Expired
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-indigo-500/80 backdrop-blur-md text-white font-mono flex items-center gap-1">
+                          <Clock className="w-2.5 h-2.5" />
+                          {dInfo ? dInfo.label : 'Open'}
+                        </span>
+                      );
+                    })()}
                 </div>
 
                 {/* Creator Chip */}
@@ -361,15 +378,28 @@ function ProjectsContent() {
                     Cap Table
                   </button>
 
-                  {project.status === 'OPEN' && (
-                    <button
-                      onClick={() => setInvestProject(project)}
-                      className="flex-1 py-2 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-black text-xs font-bold shadow-md shadow-amber-500/10 transition-all flex items-center justify-center gap-1"
-                    >
-                      <Coins className="w-3.5 h-3.5" />
-                      <span>Back (500+)</span>
-                    </button>
-                  )}
+                  {project.status === 'OPEN' && (() => {
+                    const dInfo = getDeadlineInfo(project.deadline);
+                    if (dInfo?.isExpired) {
+                      return (
+                        <button
+                          disabled
+                          className="flex-1 py-2 px-3 rounded-xl bg-white/5 border border-white/5 text-gray-500 text-xs font-semibold cursor-not-allowed"
+                        >
+                          Expired
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        onClick={() => setInvestProject(project)}
+                        className="flex-1 py-2 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-black text-xs font-bold shadow-md shadow-amber-500/10 transition-all flex items-center justify-center gap-1"
+                      >
+                        <Coins className="w-3.5 h-3.5" />
+                        <span>Back (500+)</span>
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
