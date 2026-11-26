@@ -12,7 +12,8 @@ router.get('/:id', optionalAuth, ProjectController.getProjectById);
 // Protected creator creation
 router.post('/', requireAuth, requireRole(UserRole.CREATOR), ProjectController.createProject);
 
-// Protected fractional investment
+// Protected fractional investment & cancellation
 router.post('/:id/invest', requireAuth, ProjectController.investInProject);
+router.post('/:id/cancel', requireAuth, ProjectController.cancelProject);
 
 export const projectRoutes = router;

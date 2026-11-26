@@ -19,6 +19,7 @@ import {
   ExternalLink,
   ShieldCheck,
   Loader2,
+  Lock,
 } from 'lucide-react';
 
 export default function WalletPage() {
@@ -93,6 +94,24 @@ export default function WalletPage() {
             Funding Payout
           </span>
         );
+      case 'INVESTMENT_HOLD':
+        return (
+          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1 w-fit">
+            <Lock className="w-2.5 h-2.5" /> Escrow Hold
+          </span>
+        );
+      case 'INVESTMENT_SETTLED':
+        return (
+          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 w-fit">
+            <CheckCircle2 className="w-2.5 h-2.5" /> IPO Allotted
+          </span>
+        );
+      case 'INVESTMENT_RELEASED':
+        return (
+          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 flex items-center gap-1 w-fit">
+            <RefreshCw className="w-2.5 h-2.5" /> Hold Released
+          </span>
+        );
       default:
         return (
           <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-gray-300">
@@ -138,13 +157,37 @@ export default function WalletPage() {
               </span>
             </div>
 
-            <div>
-              <span className="text-xs text-gray-400 block mb-1">Available ArtCredit Balance</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl sm:text-4xl font-black text-white font-mono tracking-tight">
-                  {wallet?.creditBalance.toLocaleString() || 0}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                <span className="text-xs text-gray-400 block mb-1">Available Spendable</span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+                    {wallet?.creditBalance.toLocaleString() || 0}
+                  </span>
+                  <span className="text-xs font-bold text-amber-400 font-mono">AC</span>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-amber-500/[0.04] border border-amber-500/20">
+                <span className="text-xs text-amber-300/80 block mb-1 flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-amber-400" /> In IPO Escrow (Held)
                 </span>
-                <span className="text-base font-bold text-amber-400 font-mono">AC</span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl sm:text-3xl font-black text-amber-400 font-mono tracking-tight">
+                    {wallet?.heldBalance.toLocaleString() || 0}
+                  </span>
+                  <span className="text-xs font-bold text-amber-400 font-mono">AC</span>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                <span className="text-xs text-gray-400 block mb-1">Total Account Balance</span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl sm:text-3xl font-black text-indigo-300 font-mono tracking-tight">
+                    {((wallet?.totalBalance ?? ((wallet?.creditBalance || 0) + (wallet?.heldBalance || 0)))).toLocaleString()}
+                  </span>
+                  <span className="text-xs font-bold text-indigo-400 font-mono">AC</span>
+                </div>
               </div>
             </div>
 
@@ -288,13 +331,17 @@ export default function WalletPage() {
                     </td>
 
                     <td className="py-3 px-4">
-                      {item.projectStatus === 'FUNDED' ? (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                          Funded (100%)
+                      {item.status === 'ALLOTTED' || item.projectStatus === 'FUNDED' ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 w-fit">
+                          <CheckCircle2 className="w-3 h-3" /> Allotted (100%)
+                        </span>
+                      ) : item.status === 'RELEASED' || item.projectStatus === 'CANCELLED' ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-500/10 text-gray-400 border border-gray-500/30 flex items-center gap-1 w-fit">
+                          Released (Refunded)
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
-                          {item.fundingProgressPercentage.toFixed(0)}% Open
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1 w-fit">
+                          <Lock className="w-3 h-3" /> On Hold ({item.fundingProgressPercentage.toFixed(0)}% Open)
                         </span>
                       )}
                     </td>
@@ -358,6 +405,9 @@ export default function WalletPage() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {wallet.transactions.map((tx) => {
+                  const isHold = tx.type === 'INVESTMENT_HOLD';
+                  const isSettled = tx.type === 'INVESTMENT_SETTLED';
+                  const isReleased = tx.type === 'INVESTMENT_RELEASED';
                   const isPositive = tx.amount > 0;
                   return (
                     <tr key={tx.id} className="hover:bg-white/[0.02]">
@@ -375,10 +425,24 @@ export default function WalletPage() {
                       </td>
                       <td
                         className={`py-3 px-4 font-mono font-bold text-right ${
-                          isPositive ? 'text-emerald-400' : 'text-amber-400'
+                          isSettled
+                            ? 'text-indigo-400'
+                            : isReleased
+                            ? 'text-cyan-400'
+                            : isHold
+                            ? 'text-amber-400'
+                            : isPositive
+                            ? 'text-emerald-400'
+                            : 'text-amber-400'
                         }`}
                       >
-                        {isPositive ? `+${tx.amount.toLocaleString()}` : tx.amount.toLocaleString()} AC
+                        {isSettled
+                          ? 'Settled (Allotted)'
+                          : isHold
+                          ? `${tx.amount.toLocaleString()} AC (Held)`
+                          : isPositive
+                          ? `+${tx.amount.toLocaleString()} AC`
+                          : `${tx.amount.toLocaleString()} AC`}
                       </td>
                       <td className="py-3 px-4 font-mono text-gray-300 text-right">
                         {tx.balanceAfter.toLocaleString()} AC

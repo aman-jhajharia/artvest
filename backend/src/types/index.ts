@@ -38,6 +38,7 @@ export interface SafeUser {
   role: UserRole;
   isOnboarded: boolean;
   creditBalance: number;
+  heldBalance: number;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -3,7 +3,8 @@ import { AppError } from '../utils/apiResponse.js';
 
 export class WalletService {
   /**
-   * Retrieves user's live demo ArtCredit balance, investment portfolio with share percentages, and audit ledger.
+   * Retrieves user's live demo ArtCredit balance (available, held in escrow, and total),
+   * investment portfolio with share percentages and hold/allotment status, and audit ledger.
    */
   public static async getWallet(userId: string) {
     const user = await prisma.user.findUnique({
@@ -13,6 +14,7 @@ export class WalletService {
         name: true,
         email: true,
         creditBalance: true,
+        heldBalance: true,
       },
     });
 
@@ -68,6 +70,7 @@ export class WalletService {
       projectId: inv.projectId,
       projectTitle: inv.project.title,
       projectStatus: inv.project.status,
+      status: inv.status, // HELD, ALLOTTED, RELEASED
       coverMediaUrl: inv.project.coverMediaUrl,
       category: inv.project.category,
       creator: inv.project.creator,
@@ -82,6 +85,8 @@ export class WalletService {
 
     return {
       creditBalance: user.creditBalance,
+      heldBalance: user.heldBalance,
+      totalBalance: user.creditBalance + user.heldBalance,
       totalInvestedCredits,
       activeHoldingsCount: portfolio.length,
       portfolio,
@@ -98,7 +103,7 @@ export class WalletService {
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({
         where: { id: userId },
-        select: { id: true, creditBalance: true },
+        select: { id: true, creditBalance: true, heldBalance: true },
       });
 
       if (!user) {
@@ -122,6 +127,8 @@ export class WalletService {
 
       return {
         newBalance: updated.creditBalance,
+        heldBalance: updated.heldBalance,
+        totalBalance: updated.creditBalance + updated.heldBalance,
         amountAdded: topupAmount,
         transaction: txRecord,
       };

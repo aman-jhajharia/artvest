@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { CreativeProjectItem } from '@/types';
 import { ProjectApiService } from '../services/project.service';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 import { InvestProjectModal } from './InvestProjectModal';
 import {
   X,
@@ -16,6 +17,8 @@ import {
   TrendingUp,
   ShieldCheck,
   Loader2,
+  Lock,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface ProjectDetailsModalProps {
@@ -31,9 +34,14 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
   onClose,
   onInvested,
 }) => {
+  const { user } = useAuth();
   const [project, setProject] = useState<CreativeProjectItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isInvestModalOpen, setIsInvestModalOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelSuccess, setCancelSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen || !projectId) return;
@@ -58,6 +66,29 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
       isMounted = false;
     };
   }, [isOpen, projectId]);
+
+  const handleCancelPitch = async () => {
+    if (!project) return;
+    setIsCancelling(true);
+    setCancelError(null);
+    try {
+      const res = await ProjectApiService.cancelProject(project.id);
+      if (res.success && res.data) {
+        setCancelSuccess(
+          `Pitch cancelled. ${res.data.refundedBackersCount} backer hold(s) released (${res.data.totalCreditsRefunded.toLocaleString()} AC refunded).`
+        );
+        setProject(res.data.project);
+        if (onInvested) onInvested();
+      } else {
+        setCancelError(res.message || 'Failed to cancel pitch');
+      }
+    } catch (err) {
+      setCancelError(err instanceof Error ? err.message : 'Cancellation failed');
+    } finally {
+      setIsCancelling(false);
+      setCancelConfirm(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -209,11 +240,26 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                       <Coins className="w-4 h-4" />
                     </div>
                     <div>
-                      <span className="text-xs font-bold text-amber-300 block">
-                        Your Current Holding
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-amber-300">
+                          Your Current Holding
+                        </span>
+                        {project.currentUserInvestment.status === 'ALLOTTED' || project.status === 'FUNDED' ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                            Allotted
+                          </span>
+                        ) : project.currentUserInvestment.status === 'RELEASED' || project.status === 'CANCELLED' ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-500/10 text-gray-400 border border-gray-500/30">
+                            Released
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                            <Lock className="w-2.5 h-2.5" /> Held in Escrow
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[11px] text-gray-400">
-                        {project.currentUserInvestment.creditsInvested.toLocaleString()} AC contributed
+                        {project.currentUserInvestment.creditsInvested.toLocaleString()} AC pledged
                       </span>
                     </div>
                   </div>
@@ -228,14 +274,20 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                 </div>
               )}
 
-              {/* Live Shareholder Cap Table */}
+              {/* Shareholder Cap Table */}
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
                     <Users className="w-3.5 h-3.5 text-indigo-400" />
-                    Shareholder Cap Table ({project.capTable?.length || 0} Backers)
+                    {project.status === 'FUNDED'
+                      ? `Finalized Allotment (${project.capTable?.length || 0} Backers)`
+                      : project.status === 'CANCELLED'
+                      ? `Released Pledges (${project.capTable?.length || 0} Backers)`
+                      : `Tentative Share Allocations (${project.capTable?.length || 0} Backers)`}
                   </h4>
-                  <span className="text-[11px] text-gray-400">Proportional Equity Pool</span>
+                  <span className="text-[11px] text-gray-400">
+                    {project.status === 'OPEN' ? 'Pledges Held in Escrow' : 'Proportional Equity Pool'}
+                  </span>
                 </div>
 
                 {project.capTable && project.capTable.length > 0 ? (
@@ -244,6 +296,7 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                       <thead className="bg-white/[0.04] border-b border-white/5 text-[11px] text-gray-400 uppercase font-semibold">
                         <tr>
                           <th className="py-2.5 px-3">Investor</th>
+                          <th className="py-2.5 px-3">Status</th>
                           <th className="py-2.5 px-3">Credits</th>
                           <th className="py-2.5 px-3">Shares</th>
                           <th className="py-2.5 px-3 text-right">Pool %</th>
@@ -272,6 +325,21 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                                 {holder.name}
                               </span>
                             </td>
+                            <td className="py-2.5 px-3">
+                              {holder.status === 'ALLOTTED' || project.status === 'FUNDED' ? (
+                                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                  Allotted
+                                </span>
+                              ) : holder.status === 'RELEASED' || project.status === 'CANCELLED' ? (
+                                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-gray-500/10 text-gray-400 border border-gray-500/30">
+                                  Released
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1 w-fit">
+                                  <Lock className="w-2.5 h-2.5" /> Held
+                                </span>
+                              )}
+                            </td>
                             <td className="py-2.5 px-3 font-mono text-gray-300">
                               {holder.creditsInvested.toLocaleString()} AC
                             </td>
@@ -293,24 +361,93 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                 )}
               </div>
 
-              {/* Action Trigger */}
-              {project.status === 'OPEN' ? (
-                <div className="pt-2">
-                  <button
-                    onClick={() => setIsInvestModalOpen(true)}
-                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.01]"
-                  >
-                    <Coins className="w-4 h-4 font-bold" />
-                    <span>Back This Pitch (In Multiples of 500 AC)</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <div className="p-3 text-center rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-semibold text-emerald-400 flex items-center justify-center gap-2">
-                  <CheckCircle className="w-4 h-4" />
-                  This project has successfully closed funding at 100%!
+              {/* Feedback banners */}
+              {cancelError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-300 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{cancelError}</span>
                 </div>
               )}
+              {cancelSuccess && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>{cancelSuccess}</span>
+                </div>
+              )}
+
+              {/* Action Trigger & Creator Cancellation */}
+              <div className="space-y-3 pt-2">
+                {project.status === 'OPEN' ? (
+                  <>
+                    <button
+                      onClick={() => setIsInvestModalOpen(true)}
+                      className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.01]"
+                    >
+                      <Coins className="w-4 h-4 font-bold" />
+                      <span>Back This Pitch (In Multiples of 500 AC)</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+
+                    {/* Creator cancel pitch controls */}
+                    {user?.id === project.creatorId && (
+                      <div className="pt-2 border-t border-white/5">
+                        {!cancelConfirm ? (
+                          <button
+                            type="button"
+                            onClick={() => setCancelConfirm(true)}
+                            disabled={isCancelling}
+                            className="w-full py-2.5 px-3 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            <span>Cancel Pitch & Release All Held Pledges</span>
+                          </button>
+                        ) : (
+                          <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 space-y-2 text-xs">
+                            <p className="text-red-200 font-medium">
+                              Are you sure you want to cancel this pitch? All backer pledges currently held in escrow will be immediately returned to their available balances with zero fee.
+                            </p>
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={handleCancelPitch}
+                                disabled={isCancelling}
+                                className="flex-1 py-2 px-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                              >
+                                {isCancelling ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Releasing Holds...</span>
+                                  </>
+                                ) : (
+                                  <span>Yes, Cancel & Refund Backers</span>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCancelConfirm(false)}
+                                disabled={isCancelling}
+                                className="py-2 px-3 rounded-lg bg-white/10 hover:bg-white/15 text-gray-300 text-xs transition-colors"
+                              >
+                                Keep Pitch Active
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : project.status === 'FUNDED' ? (
+                  <div className="p-3 text-center rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-semibold text-emerald-400 flex items-center justify-center gap-2">
+                    <CheckCircle className="w-4 h-4" />
+                    This project has successfully closed funding at 100%! All shares allotted.
+                  </div>
+                ) : (
+                  <div className="p-3 text-center rounded-xl bg-gray-500/10 border border-gray-500/20 text-xs font-semibold text-gray-400 flex items-center justify-center gap-2">
+                    <X className="w-4 h-4" />
+                    This pitch was cancelled. All escrow funds have been released back to backers.
+                  </div>
+                )}
+              </div>
             </div>
           ) : null}
         </div>

@@ -139,4 +139,29 @@ export class ProjectApiService {
       };
     }
   }
+
+  /**
+   * Cancel an open pitch and atomically release all held pledges back to backers (Creator only).
+   */
+  public static async cancelProject(id: string): Promise<ApiResponse<{
+    project: CreativeProjectItem;
+    refundedBackersCount: number;
+    totalCreditsRefunded: number;
+  }>> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/projects/${id}/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      return await res.json();
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to cancel project',
+        error: { code: 'NETWORK_ERROR', details: String(error) },
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
 }

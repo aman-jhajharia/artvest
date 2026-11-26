@@ -4,7 +4,7 @@ import React, { useState, useId } from 'react';
 import { CreativeProjectItem } from '@/types';
 import { ProjectApiService } from '../services/project.service';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { X, Sparkles, AlertCircle, CheckCircle2, Coins, ArrowRight, Loader2 } from 'lucide-react';
+import { X, Sparkles, AlertCircle, CheckCircle2, Coins, ArrowRight, Loader2, ShieldCheck, Lock } from 'lucide-react';
 
 interface InvestProjectModalProps {
   project: CreativeProjectItem;
@@ -149,6 +149,17 @@ export const InvestProjectModal: React.FC<InvestProjectModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* IPO Escrow Hold Banner */}
+          <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-transparent border border-amber-500/20 text-xs space-y-1.5">
+            <div className="flex items-center gap-2 text-amber-300 font-bold">
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+              <span>IPO-Style Escrow Hold</span>
+            </div>
+            <p className="text-gray-300 text-[11px] leading-relaxed">
+              Your pledged credits are placed on hold in escrow and will only be debited if this pitch reaches 100% of its funding goal. If cancelled or unfulfilled, held credits are immediately released back to your spendable balance with zero loss.
+            </p>
+          </div>
+
           {/* Funding Status Pill */}
           <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/5 text-xs">
             <div>
@@ -158,10 +169,15 @@ export const InvestProjectModal: React.FC<InvestProjectModalProps> = ({
               </span>
             </div>
             <div>
-              <span className="text-gray-400 block text-[11px]">Your Live Demo Balance</span>
+              <span className="text-gray-400 block text-[11px]">Your Available Spendable Balance</span>
               <span className="font-bold text-white text-sm">
                 {userBalance.toLocaleString()} AC
               </span>
+              {user?.heldBalance && user.heldBalance > 0 ? (
+                <span className="text-[10px] text-amber-400/80 font-mono block">
+                  ({user.heldBalance.toLocaleString()} AC currently on hold)
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -273,7 +289,14 @@ export const InvestProjectModal: React.FC<InvestProjectModalProps> = ({
             </div>
 
             <div className="border-t border-white/5 pt-2 flex items-center justify-between text-xs">
-              <span className="text-gray-400">Balance After Investment</span>
+              <span className="text-gray-400">Amount Placed on Hold in Escrow</span>
+              <span className="font-mono text-amber-300 font-bold">
+                {amount > 0 ? amount.toLocaleString() : 0} AC
+              </span>
+            </div>
+
+            <div className="border-t border-white/5 pt-2 flex items-center justify-between text-xs">
+              <span className="text-gray-400">Available Spendable Balance After Pledge</span>
               <span className="font-mono text-gray-300">
                 {projectedBalanceAfter.toLocaleString()} AC
               </span>

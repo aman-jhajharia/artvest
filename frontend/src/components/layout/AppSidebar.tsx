@@ -140,6 +140,11 @@ export const AppSidebar: React.FC = () => {
                 <span className="text-xs font-bold text-white font-mono group-hover:text-amber-300 transition-colors">
                   {(user?.creditBalance ?? 10000).toLocaleString()} AC
                 </span>
+                {user?.heldBalance && user.heldBalance > 0 ? (
+                  <span className="text-[10px] text-amber-400/80 font-mono block">
+                    ({user.heldBalance.toLocaleString()} on hold)
+                  </span>
+                ) : null}
               </div>
             </div>
             <span className="text-[10px] font-semibold text-amber-400 group-hover:translate-x-0.5 transition-transform">

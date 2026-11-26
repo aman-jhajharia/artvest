@@ -81,11 +81,20 @@ enum ProjectStatus {
   CANCELLED
 }
 
+enum InvestmentStatus {
+  HELD
+  ALLOTTED
+  RELEASED
+}
+
 enum CreditTransactionType {
   SIGNUP_BONUS
   DEMO_TOPUP
   PROJECT_INVESTMENT
   PROJECT_FUNDING_RECEIVED
+  INVESTMENT_HOLD
+  INVESTMENT_SETTLED
+  INVESTMENT_RELEASED
 }
 
 enum ReportTargetType {
@@ -121,6 +130,7 @@ model User {
   role                  UserRole          @default(USER)
   isOnboarded           Boolean           @default(false)
   creditBalance         Int               @default(10000)
+  heldBalance           Int               @default(0)
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 
@@ -514,6 +524,7 @@ model ProjectInvestment {
   creditsInvested Int              @default(0)
   sharesAcquired  Int              @default(0)
   sharePercentage Float            @default(0.0) // Cached fractional share (sharesAcquired / totalShares * 100)
+  status          InvestmentStatus @default(HELD)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -523,6 +534,7 @@ model ProjectInvestment {
   @@unique([projectId, investorId])
   @@index([investorId])
   @@index([projectId])
+  @@index([status])
 }
 
 model CreditTransaction {

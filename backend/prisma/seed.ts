@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, ExperienceLevel, AvailabilityStatus, PostType, PostStatus, MediaType, InquiryStatus, NotificationType, ProjectStatus, CreditTransactionType } from '@prisma/client';
+import { PrismaClient, UserRole, ExperienceLevel, AvailabilityStatus, PostType, PostStatus, MediaType, InquiryStatus, NotificationType, ProjectStatus, CreditTransactionType, InvestmentStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -685,26 +685,26 @@ async function main() {
 
   console.log('--- Seeding Creative Projects & Fractional Investments ---');
 
-  // Ensure initial credit balances for users
+  // Ensure initial credit balances for users (Available vs. Held in IPO Escrow)
   await prisma.user.update({
     where: { id: userAanya.id },
-    data: { creditBalance: 35000 },
+    data: { creditBalance: 35000, heldBalance: 0 },
   });
   await prisma.user.update({
     where: { id: userKabir.id },
-    data: { creditBalance: 50000 },
+    data: { creditBalance: 50000, heldBalance: 0 },
   });
   await prisma.user.update({
     where: { id: userRhea.id },
-    data: { creditBalance: 20000 },
+    data: { creditBalance: 20000, heldBalance: 0 },
   });
   await prisma.user.update({
     where: { id: userRohan.id },
-    data: { creditBalance: 15000 },
+    data: { creditBalance: 15000, heldBalance: 5000 }, // 3,000 for Dhwani + 2,000 for Natyam on hold
   });
   await prisma.user.update({
     where: { id: userMeera.id },
-    data: { creditBalance: 25000 },
+    data: { creditBalance: 25000, heldBalance: 1500 }, // 1,500 for Dhwani on hold
   });
 
   // Project 1: Dhwani: Acoustic Heritage EP (Aanya - Music)
@@ -743,6 +743,7 @@ async function main() {
       creditsInvested: 3000,
       sharesAcquired: 2000,
       sharePercentage: 20.0,
+      status: InvestmentStatus.HELD,
     },
     create: {
       projectId: project1.id,
@@ -750,6 +751,7 @@ async function main() {
       creditsInvested: 3000,
       sharesAcquired: 2000,
       sharePercentage: 20.0,
+      status: InvestmentStatus.HELD,
     },
   });
 
@@ -764,6 +766,7 @@ async function main() {
       creditsInvested: 1500,
       sharesAcquired: 1000,
       sharePercentage: 10.0,
+      status: InvestmentStatus.HELD,
     },
     create: {
       projectId: project1.id,
@@ -771,6 +774,7 @@ async function main() {
       creditsInvested: 1500,
       sharesAcquired: 1000,
       sharePercentage: 10.0,
+      status: InvestmentStatus.HELD,
     },
   });
 
@@ -810,6 +814,7 @@ async function main() {
       creditsInvested: 15000,
       sharesAcquired: 6000,
       sharePercentage: 60.0,
+      status: InvestmentStatus.ALLOTTED,
     },
     create: {
       projectId: project2.id,
@@ -817,6 +822,7 @@ async function main() {
       creditsInvested: 15000,
       sharesAcquired: 6000,
       sharePercentage: 60.0,
+      status: InvestmentStatus.ALLOTTED,
     },
   });
 
@@ -831,6 +837,7 @@ async function main() {
       creditsInvested: 10000,
       sharesAcquired: 4000,
       sharePercentage: 40.0,
+      status: InvestmentStatus.ALLOTTED,
     },
     create: {
       projectId: project2.id,
@@ -838,6 +845,7 @@ async function main() {
       creditsInvested: 10000,
       sharesAcquired: 4000,
       sharePercentage: 40.0,
+      status: InvestmentStatus.ALLOTTED,
     },
   });
 
@@ -876,6 +884,7 @@ async function main() {
       creditsInvested: 2000,
       sharesAcquired: 2000,
       sharePercentage: 20.0,
+      status: InvestmentStatus.HELD,
     },
     create: {
       projectId: project3.id,
@@ -883,6 +892,7 @@ async function main() {
       creditsInvested: 2000,
       sharesAcquired: 2000,
       sharePercentage: 20.0,
+      status: InvestmentStatus.HELD,
     },
   });
 

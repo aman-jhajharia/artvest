@@ -147,6 +147,7 @@ export class AuthService {
       role: user.role,
       isOnboarded: user.isOnboarded,
       creditBalance: user.creditBalance,
+      heldBalance: user.heldBalance || 0,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
@@ -189,6 +190,7 @@ export class AuthService {
         role: true,
         isOnboarded: true,
         creditBalance: true,
+        heldBalance: true,
         createdAt: true,
         updatedAt: true,
         profile: true,

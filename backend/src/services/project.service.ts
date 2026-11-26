@@ -1,5 +1,5 @@
 import { prisma } from '../config/database.js';
-import { ProjectStatus, NotificationType } from '@prisma/client';
+import { ProjectStatus, NotificationType, InvestmentStatus, CreditTransactionType } from '@prisma/client';
 import { AppError } from '../utils/apiResponse.js';
 import { NotificationService } from './notification.service.js';
 import { CreateProjectInput, ProjectQuery } from '../validators/project.validator.js';
@@ -70,6 +70,7 @@ export class ProjectService {
                   creditsInvested: true,
                   sharesAcquired: true,
                   sharePercentage: true,
+                  status: true,
                 },
               }
             : false,
@@ -164,6 +165,7 @@ export class ProjectService {
       creditsInvested: inv.creditsInvested,
       sharesAcquired: inv.sharesAcquired,
       sharePercentage: inv.sharePercentage,
+      status: inv.status,
       createdAt: inv.createdAt,
     }));
 
@@ -179,6 +181,7 @@ export class ProjectService {
             creditsInvested: currentUserHolding.creditsInvested,
             sharesAcquired: currentUserHolding.sharesAcquired,
             sharePercentage: currentUserHolding.sharePercentage,
+            status: currentUserHolding.status,
           }
         : null,
     };
@@ -234,8 +237,10 @@ export class ProjectService {
   }
 
   /**
-   * Invest demo ArtCredits in exchange for proportional fractional shares.
-   * Atomically executes balance check, oversubscription guard, cumulative share math, and auto-funded transition.
+   * Back a project via an IPO-style Blocked Amount / Escrow Hold model.
+   * Step A: Funds are moved from spendable creditBalance to heldBalance (status: HELD, INVESTMENT_HOLD).
+   * Step B: When newAmountRaised === fundingGoal, atomically settle all held balances (status: ALLOTTED, INVESTMENT_SETTLED),
+   *         mark project FUNDED, and credit the creator with fundingGoal.
    */
   public static async investInProject(investorId: string, projectId: string, amount: number) {
     // 1. Strict Multiple of 500 check
@@ -254,7 +259,7 @@ export class ProjectService {
         where: { id: projectId },
         include: {
           creator: {
-            select: { id: true, name: true, creditBalance: true },
+            select: { id: true, name: true, creditBalance: true, heldBalance: true },
           },
         },
       });
@@ -291,10 +296,10 @@ export class ProjectService {
         );
       }
 
-      // Invariant: Investor must have enough demo ArtCredits
+      // Invariant: Investor must have enough available (spendable) demo ArtCredits
       const investor = await tx.user.findUnique({
         where: { id: investorId },
-        select: { id: true, name: true, creditBalance: true },
+        select: { id: true, name: true, creditBalance: true, heldBalance: true },
       });
 
       if (!investor) {
@@ -326,38 +331,30 @@ export class ProjectService {
       let newShares = Math.round((newCreditsInvested / project.fundingGoal) * project.totalShares);
       let sharesDelta = newShares - (existingInv?.sharesAcquired || 0);
 
-      // If project hits 100% funding, allocate all residual unallocated shares so sharesAllocated === totalShares
-      if (isNowFunded) {
-        const totalAllocatedWithDelta = project.sharesAllocated + sharesDelta;
-        const residualUnallocated = project.totalShares - totalAllocatedWithDelta;
-        if (residualUnallocated > 0) {
-          sharesDelta += residualUnallocated;
-          newShares += residualUnallocated;
-        }
-      }
-
-      const sharePercentage = Number(((newShares / project.totalShares) * 100).toFixed(2));
-
-      // 1. Deduct investor balance
+      // STEP A: Block/Hold funds: Move from creditBalance (available) to heldBalance (escrow hold)
       const updatedInvestor = await tx.user.update({
         where: { id: investorId },
-        data: { creditBalance: { decrement: amount } },
+        data: {
+          creditBalance: { decrement: amount },
+          heldBalance: { increment: amount },
+        },
       });
 
-      // 2. Record investor credit debit in transaction ledger
+      // Record IPO hold in CreditTransaction ledger
       await tx.creditTransaction.create({
         data: {
           userId: investorId,
           amount: -amount,
           balanceAfter: updatedInvestor.creditBalance,
-          type: 'PROJECT_INVESTMENT',
+          type: CreditTransactionType.INVESTMENT_HOLD,
           referenceId: projectId,
-          description: `Fractional backing in "${project.title}" (+${sharesDelta} shares)`,
+          description: `Pledged ${amount} AC on hold for "${project.title}" (IPO escrow hold)`,
         },
       });
 
-      // 3. Upsert investor fractional holding
-      const updatedInvestment = await tx.projectInvestment.upsert({
+      // Upsert investment record with HELD status (or ALLOTTED if this pledge completes 100%)
+      const sharePercentage = Number(((newShares / project.totalShares) * 100).toFixed(2));
+      let updatedInvestment = await tx.projectInvestment.upsert({
         where: {
           projectId_investorId: {
             projectId,
@@ -368,6 +365,7 @@ export class ProjectService {
           creditsInvested: newCreditsInvested,
           sharesAcquired: newShares,
           sharePercentage,
+          status: isNowFunded ? InvestmentStatus.ALLOTTED : InvestmentStatus.HELD,
         },
         create: {
           projectId,
@@ -375,10 +373,76 @@ export class ProjectService {
           creditsInvested: newCreditsInvested,
           sharesAcquired: newShares,
           sharePercentage,
+          status: isNowFunded ? InvestmentStatus.ALLOTTED : InvestmentStatus.HELD,
         },
       });
 
-      // 4. Update project raised amount, allocated shares, and status
+      // STEP B: If this pledge hits 100% funding, atomically settle ALL backers
+      if (isNowFunded) {
+        // 1. Allocate residual rounding shares so sharesAllocated === totalShares
+        const totalAllocatedWithDelta = project.sharesAllocated + sharesDelta;
+        const residualUnallocated = project.totalShares - totalAllocatedWithDelta;
+        if (residualUnallocated > 0) {
+          sharesDelta += residualUnallocated;
+          newShares += residualUnallocated;
+          updatedInvestment = await tx.projectInvestment.update({
+            where: { id: updatedInvestment.id },
+            data: { sharesAcquired: newShares },
+          });
+        }
+
+        // 2. Fetch all pledges for this project and finalize settlement
+        const allProjectPledges = await tx.projectInvestment.findMany({
+          where: { projectId },
+        });
+
+        for (const pledge of allProjectPledges) {
+          // Permanently deduct held balance
+          const settledBacker = await tx.user.update({
+            where: { id: pledge.investorId },
+            data: {
+              heldBalance: { decrement: pledge.creditsInvested },
+            },
+          });
+
+          // Mark investment as ALLOTTED
+          await tx.projectInvestment.update({
+            where: { id: pledge.id },
+            data: { status: InvestmentStatus.ALLOTTED },
+          });
+
+          // Record settlement event
+          await tx.creditTransaction.create({
+            data: {
+              userId: pledge.investorId,
+              amount: 0, // Held credits converted into permanent equity shares
+              balanceAfter: settledBacker.creditBalance,
+              type: CreditTransactionType.INVESTMENT_SETTLED,
+              referenceId: projectId,
+              description: `IPO allotment finalized: ${pledge.sharesAcquired} shares issued in "${project.title}" (${pledge.sharePercentage}%)`,
+            },
+          });
+        }
+
+        // 3. Payout project creator
+        const updatedCreator = await tx.user.update({
+          where: { id: project.creatorId },
+          data: { creditBalance: { increment: project.fundingGoal } },
+        });
+
+        await tx.creditTransaction.create({
+          data: {
+            userId: project.creatorId,
+            amount: project.fundingGoal,
+            balanceAfter: updatedCreator.creditBalance,
+            type: CreditTransactionType.PROJECT_FUNDING_RECEIVED,
+            referenceId: projectId,
+            description: `Project fully funded: "${project.title}" received ${project.fundingGoal} AC`,
+          },
+        });
+      }
+
+      // Update project raised amount and shares
       const updatedProject = await tx.creativeProject.update({
         where: { id: projectId },
         data: {
@@ -388,32 +452,12 @@ export class ProjectService {
         },
       });
 
-      // 5. If fully funded, payout creator and record credit transaction
-      let updatedCreatorBalance = project.creator.creditBalance;
-      if (isNowFunded) {
-        const updatedCreator = await tx.user.update({
-          where: { id: project.creatorId },
-          data: { creditBalance: { increment: project.fundingGoal } },
-        });
-        updatedCreatorBalance = updatedCreator.creditBalance;
-
-        await tx.creditTransaction.create({
-          data: {
-            userId: project.creatorId,
-            amount: project.fundingGoal,
-            balanceAfter: updatedCreator.creditBalance,
-            type: 'PROJECT_FUNDING_RECEIVED',
-            referenceId: projectId,
-            description: `Project fully funded: "${project.title}" received ${project.fundingGoal} AC`,
-          },
-        });
-      }
-
       return {
         investment: updatedInvestment,
         project: updatedProject,
         isNowFunded,
         investorBalance: updatedInvestor.creditBalance,
+        investorHeldBalance: isNowFunded ? 0 : updatedInvestor.heldBalance,
         investorName: investor.name,
         creatorId: project.creatorId,
         projectTitle: project.title,
@@ -428,7 +472,7 @@ export class ProjectService {
         actorId: investorId,
         type: NotificationType.PROJECT_BACKED,
         title: 'Project Backed!',
-        message: `${txResult.investorName} invested ${amount} ArtCredits in "${txResult.projectTitle}"!`,
+        message: `${txResult.investorName} pledged ${amount} ArtCredits on hold for "${txResult.projectTitle}"!`,
         resourceId: projectId,
         resourceType: 'PROJECT',
       });
@@ -449,5 +493,98 @@ export class ProjectService {
     }
 
     return txResult;
+  }
+
+  /**
+   * Cancel an open project and release all backer held funds back to their spendable balance.
+   */
+  public static async cancelProject(userId: string, projectId: string) {
+    const project = await prisma.creativeProject.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    if (project.creatorId !== userId) {
+      throw new AppError('Only the project creator can cancel this pitch', 403, 'FORBIDDEN');
+    }
+
+    if (project.status !== ProjectStatus.OPEN) {
+      throw new AppError(
+        'Only projects currently open for investment can be cancelled',
+        400,
+        'CANNOT_CANCEL_PROJECT'
+      );
+    }
+
+    const cancelResult = await prisma.$transaction(async (tx) => {
+      // 1. Fetch all pledges currently on hold
+      const heldPledges = await tx.projectInvestment.findMany({
+        where: {
+          projectId,
+          status: InvestmentStatus.HELD,
+        },
+      });
+
+      // 2. Release hold for each backer
+      for (const pledge of heldPledges) {
+        const releasedUser = await tx.user.update({
+          where: { id: pledge.investorId },
+          data: {
+            creditBalance: { increment: pledge.creditsInvested },
+            heldBalance: { decrement: pledge.creditsInvested },
+          },
+        });
+
+        await tx.projectInvestment.update({
+          where: { id: pledge.id },
+          data: { status: InvestmentStatus.RELEASED },
+        });
+
+        await tx.creditTransaction.create({
+          data: {
+            userId: pledge.investorId,
+            amount: pledge.creditsInvested,
+            balanceAfter: releasedUser.creditBalance,
+            type: CreditTransactionType.INVESTMENT_RELEASED,
+            referenceId: projectId,
+            description: `Escrow hold released: "${project.title}" cancelled. +${pledge.creditsInvested} AC returned to available balance`,
+          },
+        });
+      }
+
+      // 3. Mark project cancelled
+      const updatedProject = await tx.creativeProject.update({
+        where: { id: projectId },
+        data: { status: ProjectStatus.CANCELLED },
+      });
+
+      return {
+        project: updatedProject,
+        releasedBackersCount: heldPledges.length,
+        heldPledges,
+      };
+    });
+
+    // Notify backers of cancellation & refund
+    for (const pledge of cancelResult.heldPledges) {
+      try {
+        await NotificationService.createNotification({
+          recipientId: pledge.investorId,
+          actorId: userId,
+          type: NotificationType.SYSTEM,
+          title: 'Project Cancelled - Funds Released',
+          message: `"${project.title}" was cancelled. Your ${pledge.creditsInvested} AC on hold has been released back to your available balance.`,
+          resourceId: projectId,
+          resourceType: 'PROJECT',
+        });
+      } catch {
+        // Notification failure shouldn't abort
+      }
+    }
+
+    return cancelResult;
   }
 }

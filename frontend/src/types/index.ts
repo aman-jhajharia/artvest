@@ -19,6 +19,7 @@ export interface User {
   role: UserRole;
   isOnboarded: boolean;
   creditBalance?: number;
+  heldBalance?: number;
 }
 
 export interface CreatorSkill {
@@ -101,11 +102,16 @@ export interface ApiResponse<T = unknown> {
 
 export type ProjectStatus = 'OPEN' | 'FUNDED' | 'COMPLETED' | 'CANCELLED';
 
+export type InvestmentStatus = 'HELD' | 'ALLOTTED' | 'RELEASED';
+
 export type CreditTransactionType =
   | 'SIGNUP_BONUS'
   | 'DEMO_TOPUP'
   | 'PROJECT_INVESTMENT'
-  | 'PROJECT_FUNDING_RECEIVED';
+  | 'PROJECT_FUNDING_RECEIVED'
+  | 'INVESTMENT_HOLD'
+  | 'INVESTMENT_SETTLED'
+  | 'INVESTMENT_RELEASED';
 
 export interface ProjectCapTableEntry {
   investorId: string;
@@ -114,6 +120,7 @@ export interface ProjectCapTableEntry {
   creditsInvested: number;
   sharesAcquired: number;
   sharePercentage: number;
+  status?: InvestmentStatus;
   createdAt: string;
 }
 
@@ -153,6 +160,7 @@ export interface CreativeProjectItem {
     creditsInvested: number;
     sharesAcquired: number;
     sharePercentage: number;
+    status?: InvestmentStatus;
   } | null;
 }
 
@@ -172,6 +180,7 @@ export interface PortfolioItem {
   projectId: string;
   projectTitle: string;
   projectStatus: ProjectStatus;
+  status: InvestmentStatus;
   coverMediaUrl?: string | null;
   category?: {
     name: string;
@@ -191,6 +200,8 @@ export interface PortfolioItem {
 
 export interface WalletData {
   creditBalance: number;
+  heldBalance: number;
+  totalBalance: number;
   totalInvestedCredits: number;
   activeHoldingsCount: number;
   portfolio: PortfolioItem[];

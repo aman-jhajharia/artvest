@@ -117,4 +117,28 @@ export class ProjectController {
       next(error);
     }
   }
+
+  /**
+   * POST /api/projects/:id/cancel
+   * Creator cancels an open pitch and releases all backer holds back to their spendable balances.
+   */
+  public static async cancelProject(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json(sendError('Authentication required', 'UNAUTHORIZED'));
+        return;
+      }
+
+      const id = req.params.id as string;
+      const result = await ProjectService.cancelProject(req.user.id, id);
+      res.status(200).json(
+        sendSuccess(
+          result,
+          `Project successfully cancelled. All escrow holds for ${result.releasedBackersCount} backer(s) have been returned in full.`
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
 }
