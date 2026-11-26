@@ -9,7 +9,6 @@ import {
   Sparkles,
   Heart,
   MessageSquare,
-  Bookmark,
   Film,
   Music,
   Image as ImageIcon,
@@ -60,7 +59,7 @@ export const TrendingFeedTicker: React.FC<TrendingFeedTickerProps> = ({ onRefres
   }
 
   // Consistent speed calculation based on track item density
-  const dynamicDuration = Math.max(22, trackItems.length * 5);
+  const dynamicDuration = Math.max(28, trackItems.length * 6);
 
   const handleItemClick = (e: React.MouseEvent, post: PostItem) => {
     e.preventDefault();
@@ -77,199 +76,125 @@ export const TrendingFeedTicker: React.FC<TrendingFeedTickerProps> = ({ onRefres
     }
   };
 
-  const getCategoryClass = (themeKey?: string | null) => {
-    switch (themeKey) {
-      case 'music':
-        return 'text-rose-300 bg-rose-500/10 border-rose-500/20';
-      case 'film':
-        return 'text-amber-300 bg-amber-500/10 border-amber-500/20';
-      case 'dance':
-        return 'text-purple-300 bg-purple-500/10 border-purple-500/20';
-      case 'photography':
-        return 'text-cyan-300 bg-cyan-500/10 border-cyan-500/20';
-      case 'design':
-        return 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20';
-      default:
-        return 'text-indigo-300 bg-indigo-500/10 border-indigo-500/20';
-    }
-  };
-
   const renderMediaIcon = (type: string) => {
     switch (type) {
       case 'VIDEO':
-        return <Film className="w-3.5 h-3.5 text-amber-400" />;
+        return <Film className="w-6 h-6 text-amber-400" />;
       case 'AUDIO':
-        return <Music className="w-3.5 h-3.5 text-rose-400" />;
+        return <Music className="w-6 h-6 text-rose-400" />;
       case 'TEXT':
-        return <FileText className="w-3.5 h-3.5 text-indigo-400" />;
+        return <FileText className="w-6 h-6 text-indigo-400" />;
       default:
-        return <ImageIcon className="w-3.5 h-3.5 text-cyan-400" />;
+        return <ImageIcon className="w-6 h-6 text-cyan-400" />;
     }
   };
 
+  const renderCard = (post: PostItem, key: string, isAriaHidden = false) => {
+    const mediaItem = post.media?.[0];
+    const resolvedThumb = resolveMediaUrl(mediaItem?.thumbnailUrl || mediaItem?.url);
+    const categoryName = post.category?.name || post.creatorProfile?.primaryCategory?.name || 'Showcase';
+    const creatorHandle = post.creatorProfile?.stageName || post.author?.name || 'Creator';
+    const likesCount = post.likeCount ?? 0;
+    const commentsCount = post.commentCount ?? 0;
+
+    return (
+      <div
+        key={key}
+        role="button"
+        tabIndex={isAriaHidden ? -1 : 0}
+        onClick={(e) => handleItemClick(e, post)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            handleItemClick(e as unknown as React.MouseEvent, post);
+          }
+        }}
+        className="w-[250px] shrink-0 rounded-2xl bg-[#12151f] border border-white/[0.08] hover:border-amber-400/40 p-3 transition-all cursor-pointer group flex flex-col text-left"
+      >
+        {/* Top Media Preview */}
+        <div className="h-32 w-full rounded-xl overflow-hidden bg-black/40 relative shrink-0">
+          {resolvedThumb ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={resolvedThumb}
+              alt={post.title || post.caption || 'Showcase'}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-tr from-[#181c2b] to-black flex items-center justify-center text-slate-400">
+              {renderMediaIcon(post.postType)}
+            </div>
+          )}
+        </div>
+
+        {/* Category Pill */}
+        <div className="mt-2.5 flex items-center">
+          <span className="bg-amber-500/15 text-amber-400 border border-amber-400/20 text-[11px] font-medium px-2.5 py-0.5 rounded-full truncate">
+            {categoryName}
+          </span>
+        </div>
+
+        {/* Post Title */}
+        <h4 className="text-sm font-semibold text-white truncate mt-2 group-hover:text-amber-300 transition-colors">
+          {post.title || post.caption}
+        </h4>
+
+        {/* Bottom Meta Row */}
+        <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between text-xs text-slate-400 gap-2">
+          <span className="text-xs text-slate-400 truncate">
+            @{creatorHandle}
+          </span>
+          <div className="flex items-center gap-2.5 shrink-0 text-xs font-mono">
+            <span className="flex items-center gap-1 text-rose-400">
+              <Heart className="w-3 h-3 fill-rose-500/60" />
+              {likesCount}
+            </span>
+            <span className="flex items-center gap-1 text-slate-400">
+              <MessageSquare className="w-3 h-3" />
+              {commentsCount}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="relative overflow-hidden rounded-2xl glass-card border border-amber-400/25 bg-gradient-to-r from-amber-500/[0.04] via-black/50 to-amber-500/[0.04] p-1 shadow-lg shadow-black/40">
-      <div className="flex items-center">
-        {/* Fixed Left Ticker Anchor */}
-        <div className="relative z-10 flex items-center gap-2 pl-3.5 pr-4 py-2 bg-[#0d101b] border-r border-white/10 shrink-0 rounded-l-xl shadow-md">
+    <div className="relative overflow-hidden rounded-2xl glass-panel border border-white/10 p-4 space-y-3 shadow-lg shadow-black/40">
+      {/* Header Row (Clean Left-Only Title) */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
           <span className="flex h-2 w-2 relative">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
           </span>
-          <div className="flex items-center gap-1.5 font-black text-amber-300 text-xs tracking-wider uppercase font-mono">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Trending</span>
-          </div>
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <span className="tracking-wider text-xs font-semibold text-amber-400 uppercase font-mono">
+            TRENDING NOW
+          </span>
         </div>
+      </div>
 
-        {/* Scrolling Track Container */}
+      {/* Scrolling Track Container */}
+      <div
+        className="overflow-hidden relative py-1"
+        style={{
+          maskImage:
+            'linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent)',
+        }}
+      >
         <div
-          className="overflow-hidden flex-1 relative py-1.5"
-          style={{ maskImage: 'linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent)' }}
+          className="animate-marquee flex items-center gap-4"
+          style={{ '--marquee-duration': `${dynamicDuration}s` } as React.CSSProperties}
         >
-          <div
-            className="animate-marquee group flex items-center gap-3"
-            style={{ '--marquee-duration': `${dynamicDuration}s` } as React.CSSProperties}
-          >
-            {/* First Half */}
-            <div className="flex items-center gap-3 shrink-0">
-              {trackItems.map((post, idx) => {
-                const mediaItem = post.media?.[0];
-                const resolvedThumb = resolveMediaUrl(mediaItem?.thumbnailUrl || mediaItem?.url);
-                const category = post.category || post.creatorProfile?.primaryCategory;
-                const creatorName = post.creatorProfile?.stageName || post.author?.name || 'Creator';
+          {/* First Half */}
+          <div className="flex items-center gap-4 shrink-0">
+            {trackItems.map((post, idx) => renderCard(post, `track1-${post.id}-${idx}`))}
+          </div>
 
-                return (
-                  <button
-                    key={`track1-${post.id}-${idx}`}
-                    type="button"
-                    onClick={(e) => handleItemClick(e, post)}
-                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 hover:border-amber-400/40 text-left transition-all hover:scale-[1.02] cursor-pointer shrink-0"
-                    title={`View ${post.title || post.caption}`}
-                  >
-                    {/* Media Thumbnail or Category Icon */}
-                    <div className="w-8 h-8 rounded-lg bg-black/50 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
-                      {resolvedThumb ? (
-                        <img
-                          src={resolvedThumb}
-                          alt={post.title || 'Showcase'}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        renderMediaIcon(post.postType)
-                      )}
-                    </div>
-
-                    {/* Meta info */}
-                    <div className="flex flex-col min-w-0 max-w-[200px]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-semibold text-white truncate">
-                          {post.title || post.caption}
-                        </span>
-                        {category && (
-                          <span
-                            className={`text-[9px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${getCategoryClass(
-                              category.themeKey
-                            )}`}
-                          >
-                            {category.name}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                        <span className="truncate text-gray-300 font-medium">@{creatorName}</span>
-                        <span>•</span>
-                        <span className="flex items-center gap-0.5 font-mono text-rose-300">
-                          <Heart className="w-2.5 h-2.5 fill-rose-500/60" />
-                          {post.likeCount ?? 0}
-                        </span>
-                        <span className="flex items-center gap-0.5 font-mono text-amber-300">
-                          <MessageSquare className="w-2.5 h-2.5" />
-                          {post.commentCount ?? 0}
-                        </span>
-                        {post.saveCount !== undefined && post.saveCount > 0 && (
-                          <span className="flex items-center gap-0.5 font-mono text-indigo-300">
-                            <Bookmark className="w-2.5 h-2.5 fill-indigo-400/50" />
-                            {post.saveCount}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Second Half (Identical duplicate for seamless infinite loop) */}
-            <div className="flex items-center gap-3 shrink-0" aria-hidden="true">
-              {trackItems.map((post, idx) => {
-                const mediaItem = post.media?.[0];
-                const resolvedThumb = resolveMediaUrl(mediaItem?.thumbnailUrl || mediaItem?.url);
-                const category = post.category || post.creatorProfile?.primaryCategory;
-                const creatorName = post.creatorProfile?.stageName || post.author?.name || 'Creator';
-
-                return (
-                  <button
-                    key={`track2-${post.id}-${idx}`}
-                    type="button"
-                    tabIndex={-1}
-                    onClick={(e) => handleItemClick(e, post)}
-                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 hover:border-amber-400/40 text-left transition-all hover:scale-[1.02] cursor-pointer shrink-0"
-                  >
-                    {/* Media Thumbnail or Category Icon */}
-                    <div className="w-8 h-8 rounded-lg bg-black/50 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
-                      {resolvedThumb ? (
-                        <img
-                          src={resolvedThumb}
-                          alt={post.title || 'Showcase'}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        renderMediaIcon(post.postType)
-                      )}
-                    </div>
-
-                    {/* Meta info */}
-                    <div className="flex flex-col min-w-0 max-w-[200px]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-semibold text-white truncate">
-                          {post.title || post.caption}
-                        </span>
-                        {category && (
-                          <span
-                            className={`text-[9px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${getCategoryClass(
-                              category.themeKey
-                            )}`}
-                          >
-                            {category.name}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                        <span className="truncate text-gray-300 font-medium">@{creatorName}</span>
-                        <span>•</span>
-                        <span className="flex items-center gap-0.5 font-mono text-rose-300">
-                          <Heart className="w-2.5 h-2.5 fill-rose-500/60" />
-                          {post.likeCount ?? 0}
-                        </span>
-                        <span className="flex items-center gap-0.5 font-mono text-amber-300">
-                          <MessageSquare className="w-2.5 h-2.5" />
-                          {post.commentCount ?? 0}
-                        </span>
-                        {post.saveCount !== undefined && post.saveCount > 0 && (
-                          <span className="flex items-center gap-0.5 font-mono text-indigo-300">
-                            <Bookmark className="w-2.5 h-2.5 fill-indigo-400/50" />
-                            {post.saveCount}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+          {/* Second Half (Identical duplicate for seamless infinite loop) */}
+          <div className="flex items-center gap-4 shrink-0" aria-hidden="true">
+            {trackItems.map((post, idx) => renderCard(post, `track2-${post.id}-${idx}`, true))}
           </div>
         </div>
       </div>
